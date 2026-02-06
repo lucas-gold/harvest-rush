@@ -1,0 +1,62 @@
+// Shared 16-bit-style palette. Keep indices stable — sprite matrices in
+// src/pixelart/sprites.ts reference these by key, not by hex value.
+export const PALETTE = {
+  _: "transparent",
+  soil: "#6b4226",
+  soilDark: "#4a2c19",
+  soilWet: "#3a2010",
+  soilWetDark: "#26150a",
+  grass: "#4caf50",
+  grassDark: "#3d8c40",
+  grassLight: "#63c766",
+  tilled: "#8a5a34",
+  tilledDark: "#5c3b1e",
+  fence: "#a9744f",
+  water: "#4fa8e0",
+
+  skin1: "#f3c99a",
+  skin2: "#d9a066",
+  skin3: "#a86f45",
+  hairBrown: "#5b3a29",
+  hairBlack: "#2b2b2b",
+  hairBlonde: "#e8c96b",
+  hairRed: "#a8452f",
+  shirtRed: "#c1443a",
+  shirtBlue: "#3a6bc1",
+  shirtGreen: "#3a9b5c",
+  shirtYellow: "#d9a83a",
+  overalls: "#3a5ba0",
+  overallsDark: "#28407a",
+  hatStraw: "#e0c26a",
+  hatStrawDark: "#b89a4e",
+
+  sproutGreen: "#7bc95e",
+  leafGreen: "#4a9e3a",
+  leafDark: "#2f6e24",
+  wheatGold: "#e8c14a",
+  wheatDark: "#c79b2e",
+  tomatoRed: "#d9433a",
+  cornYellow: "#f0d24a",
+  carrotOrange: "#e2872f",
+
+  chickenWhite: "#f5f0e6",
+  chickenBeak: "#e0a930",
+  chickenRed: "#c1443a",
+  foxOrange: "#d9723a",
+  foxWhite: "#f5f0e6",
+  foxDark: "#8a3f1e",
+  thiefBrown: "#7a5a3a",
+  thiefDark: "#4a3521",
+  thiefSack: "#c9a96b",
+
+  coinGold: "#f0c14a",
+  coinDark: "#c79418",
+  gemPurple: "#a34ae0",
+  gemDark: "#6e2fa0",
+
+  outline: "#1a140f",
+  white: "#ffffff",
+  shadow: "rgba(0,0,0,0.25)",
+} as const;
+
+export type PaletteKey = keyof typeof PALETTE;
