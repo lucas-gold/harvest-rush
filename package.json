@@ -12,15 +12,22 @@
     "expo-linking": "~57.0.4",
     "expo-splash-screen": "~57.0.5",
     "expo-status-bar": "~57.0.1",
+    "firebase": "^12.17.0",
+    "matter-js": "^0.20.0",
     "react": "19.2.3",
     "react-native": "0.86.2",
+    "react-native-expo-game-kit": "^1.0.0",
+    "react-native-game-engine": "^1.2.0",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-purchases": "^10.6.0",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@types/matter-js": "^0.20.2",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   },
