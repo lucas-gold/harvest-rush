@@ -1,0 +1,25 @@
+diff --git a/node_modules/expo-modules-jsi/apple/.generated/module.modulemap b/node_modules/expo-modules-jsi/apple/.generated/module.modulemap
+new file mode 100644
+index 0000000..9a03d79
+--- /dev/null
++++ b/node_modules/expo-modules-jsi/apple/.generated/module.modulemap
+@@ -0,0 +1,6 @@
++module jsi {
++  umbrella header "/Users/lucas/dev-files/react_game/ios/Pods/Headers/Public/React-jsi/jsi/jsi.h"
++
++  export *
++  module * { export * }
++}
+diff --git a/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Coding/JavaScriptCodable+Date.swift b/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Coding/JavaScriptCodable+Date.swift
+index eb1cc94..1d6d3ab 100644
+--- a/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Coding/JavaScriptCodable+Date.swift
++++ b/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Coding/JavaScriptCodable+Date.swift
+@@ -50,7 +50,7 @@ let maxJavaScriptDateMilliseconds: Double = 8_640_000_000_000_000
+ /// faithful to `new Date(number)`; the `Date`/string branches pass an already-clipped `getTime()` through.
+ @usableFromInline
+ func dateFromMilliseconds(_ milliseconds: Double) throws -> Date {
+-  guard milliseconds.isFinite, abs(milliseconds) <= maxJavaScriptDateMilliseconds else {
++  guard milliseconds.isFinite, milliseconds.magnitude <= maxJavaScriptDateMilliseconds else {
+     throw InvalidDateException()
+   }
+   return Date(timeIntervalSince1970: milliseconds.rounded(.towardZero) / 1000.0)
