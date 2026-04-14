@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Modal } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { GameCanvas } from "../game/GameCanvas";
 import { useRunStore } from "../state/runStore";
@@ -38,7 +37,7 @@ export function GameScreen({ navigation }: Props) {
   const handleExit = () => navigation.replace("Home");
 
   return (
-    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
+    <View style={styles.root}>
       <GameCanvas key={runKey} onPause={handlePause} />
 
       <Modal visible={status === "paused"} transparent animationType="fade">
@@ -70,7 +69,7 @@ export function GameScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -218,4 +218,13 @@ export function buildGemSprite(): PixelMatrix {
   return m;
 }
 
+export function buildWaterDropSprite(): PixelMatrix {
+  const m = blank();
+  fillRect(m, 6, 2, 4, 2, "water");
+  fillRect(m, 5, 4, 6, 2, "water");
+  fillRect(m, 4, 6, 8, 6, "water");
+  fillRect(m, 6, 8, 2, 2, "white");
+  return m;
+}
+
 export const SPRITE_GRID = GRID;

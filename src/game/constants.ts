@@ -1,12 +1,23 @@
-import { FARM_COLS, FARM_ROWS } from "../state/farmStore";
+import { Dimensions } from "react-native";
 
-export const TILE_SIZE = 40;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+// Tile size picked to be touch-friendly (~48pt) while filling the screen
+// width exactly; rows extend to cover the full screen height (edge to
+// edge — the farm is the entire gameplay backdrop, HUD/buttons float on
+// top of it) even if that slightly overshoots below the fold.
+const TARGET_TILE_SIZE = 48;
+
+export const FARM_COLS = Math.max(4, Math.round(SCREEN_WIDTH / TARGET_TILE_SIZE));
+export const TILE_SIZE = SCREEN_WIDTH / FARM_COLS;
+export const FARM_ROWS = Math.max(6, Math.ceil(SCREEN_HEIGHT / TILE_SIZE));
+
 export const FARM_PX_WIDTH = FARM_COLS * TILE_SIZE;
 export const FARM_PX_HEIGHT = FARM_ROWS * TILE_SIZE;
 
-export const PLAYER_SIZE = 34;
-export const PLAYER_BASE_SPEED = 150; // px/sec
-export const ENEMY_HIT_RADIUS = 26; // player-touches-enemy scare distance
+export const PLAYER_SIZE = TILE_SIZE * 0.82;
+export const PLAYER_BASE_SPEED = TILE_SIZE * 3.6; // px/sec — ~3.6 tiles/sec
+export const ENEMY_HIT_RADIUS = TILE_SIZE * 0.65; // player-touches-enemy scare distance
 
 export const WAVE_BASE_ENEMY_COUNT = 4;
 export const WAVE_ENEMY_GROWTH = 2;

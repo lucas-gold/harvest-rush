@@ -1,17 +1,20 @@
 import { PlayerRenderer } from "./PlayerRenderer";
 import { EnemyRenderer } from "./EnemyRenderer";
-import { EnemyEntityData, EnemyKind, InputRef, PlayerEntityData } from "../types";
-import { FARM_PX_HEIGHT, FARM_PX_WIDTH, PLAYER_BASE_SPEED, tileCenter } from "../constants";
+import { EnemyEntityData, EnemyKind, InputRef, PlayerEntityData, PlayerStatusRef } from "../types";
+import { FARM_PX_HEIGHT, FARM_PX_WIDTH, PLAYER_BASE_SPEED, nearestTileIndex, tileCenter } from "../constants";
 
-export function createPlayerEntity(input: InputRef): PlayerEntityData {
+export function createPlayerEntity(input: InputRef, status: PlayerStatusRef): PlayerEntityData {
+  const position = { x: FARM_PX_WIDTH / 2, y: FARM_PX_HEIGHT / 2 };
+  status.standingTile = nearestTileIndex(position.x, position.y);
   return {
     type: "player",
-    position: { x: FARM_PX_WIDTH / 2, y: FARM_PX_HEIGHT / 2 },
+    position,
     direction: "down",
     walkFrame: 0,
     moving: false,
     speed: PLAYER_BASE_SPEED,
     input,
+    status,
     renderer: PlayerRenderer as any,
   };
 }

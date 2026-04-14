@@ -13,7 +13,9 @@ export async function configureIAP() {
   if (configured || Platform.OS === "web") return;
   const apiKey = Platform.OS === "ios" ? REVENUECAT_API_KEY_IOS : REVENUECAT_API_KEY_ANDROID;
   if (isPlaceholderKey(apiKey)) {
-    console.warn(
+    // Expected until a real RevenueCat project is linked — logged, not
+    // warned, so it doesn't trip LogBox's warning banner during normal dev.
+    console.log(
       "[iap] RevenueCat API key not set — add your key in src/services/iapConfig.ts. Purchases are disabled until then."
     );
     return;

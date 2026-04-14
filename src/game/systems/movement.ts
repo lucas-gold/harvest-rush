@@ -1,5 +1,6 @@
 import { EntitiesMap, PlayerEntityData } from "../types";
-import { FARM_PX_HEIGHT, FARM_PX_WIDTH, PLAYER_SIZE } from "../constants";
+import { FARM_PX_HEIGHT, FARM_PX_WIDTH, PLAYER_SIZE, nearestTileIndex } from "../constants";
+import { tryAutoHarvest } from "../tileActions";
 
 const WALK_FRAME_INTERVAL_MS = 160;
 
@@ -37,6 +38,12 @@ export function movementSystem(entities: EntitiesMap, { time }: any): EntitiesMa
   const half = PLAYER_SIZE / 2;
   player.position.x = Math.min(FARM_PX_WIDTH - half, Math.max(half, player.position.x));
   player.position.y = Math.min(FARM_PX_HEIGHT - half, Math.max(half, player.position.y));
+
+  const standingTile = nearestTileIndex(player.position.x, player.position.y);
+  if (standingTile !== player.status.standingTile) {
+    player.status.standingTile = standingTile;
+  }
+  tryAutoHarvest(standingTile);
 
   return entities;
 }

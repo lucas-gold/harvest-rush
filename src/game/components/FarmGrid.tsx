@@ -8,10 +8,10 @@ import { computeStage } from "../growth";
 import { TILE_SIZE } from "../constants";
 
 /**
- * Purely visual — tile taps are handled by tileTapSystem, which reads
- * GameEngine's own touch queue. GameEngine's entityContainer sits on top of
- * this view (so moving entities stay interactive/visible), which means a
- * <Pressable> here would never actually receive the touch.
+ * Purely visual, full-screen soil backdrop — planting/watering/harvesting
+ * happen via the Plant/Water buttons and walk-over auto-harvest (see
+ * ActionButtons.tsx and movementSystem), not tile taps, so this never needs
+ * to handle touch itself.
  */
 export function FarmGrid() {
   const tiles = useFarmStore((s) => s.tiles);
@@ -24,17 +24,11 @@ export function FarmGrid() {
   }, []);
 
   return (
-    <View style={styles.grid} pointerEvents="none">
+    <View style={[styles.grid, { pointerEvents: "none" }]}>
       {tiles.map((tile, index) => {
         const col = index % FARM_COLS;
         const row = Math.floor(index / FARM_COLS);
-        const tileState = !tile.tilled
-          ? "grass"
-          : tile.crop
-          ? tile.crop.wateredAt
-            ? "watered"
-            : "tilled"
-          : "tilled";
+        const tileState = tile.crop?.wateredAt ? "watered" : "tilled";
         const tileMatrix = buildTileSprite(tileState as any);
 
         let cropMatrix = null;

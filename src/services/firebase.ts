@@ -18,7 +18,9 @@ export function initFirebase(): Promise<boolean> {
 
   initPromise = (async () => {
     if (!isFirebaseConfigured()) {
-      console.warn(
+      // Expected until a real Firebase project is linked — logged, not
+      // warned, so it doesn't trip LogBox's warning banner during normal dev.
+      console.log(
         "[firebase] No Firebase config set — cloud save disabled. See README 'Cloud save setup'."
       );
       return false;

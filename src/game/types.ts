@@ -9,7 +9,10 @@ export type EnemyKind = "chicken" | "fox" | "thief";
 
 export interface InputRef {
   vector: Vec2; // normalized -1..1 joystick vector
-  scareRequested: boolean; // set true on tap-to-shoo gesture near an enemy
+}
+
+export interface PlayerStatusRef {
+  standingTile: number; // tile index nearest the player's current position
 }
 
 export interface PlayerEntityData {
@@ -20,6 +23,7 @@ export interface PlayerEntityData {
   moving: boolean;
   speed: number;
   input: InputRef;
+  status: PlayerStatusRef;
   renderer: React.ComponentType<any>;
 }
 

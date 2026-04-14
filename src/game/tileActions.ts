@@ -5,7 +5,6 @@ import { CROPS } from "./crops";
 import { computeStage } from "./growth";
 
 export type TileActionResult =
-  | { kind: "tilled"; count: number }
   | { kind: "planted"; count: number }
   | { kind: "watered"; count: number }
   | { kind: "harvested"; count: number; coins: number }
@@ -43,82 +42,86 @@ function plusShape(index: number, level: number): number[] {
   return Array.from(out);
 }
 
-export function performTileTap(index: number): TileActionResult {
+/** Plants the selected crop on `index` and any tiles the seed-pouch upgrade extends to. */
+export function plantAt(index: number): TileActionResult {
   const farm = useFarmStore.getState();
   const eco = useEconomyStore.getState();
   const run = useRunStore.getState();
   const tile = farm.tiles[index];
   if (!tile) return { kind: "blocked", reason: "invalid" };
 
-  // Till bare grass
-  if (!tile.tilled && !tile.crop) {
-    const targets = rowExtension(index, eco.upgradeLevels.tractor);
-    let count = 0;
-    for (const i of targets) {
-      const t = farm.tiles[i];
-      if (t && !t.tilled && !t.crop) {
-        farm.tillTile(i);
-        count++;
-      }
-    }
-    return { kind: "tilled", count };
-  }
+  const targets = rowExtension(index, eco.upgradeLevels.plantSpeed);
+  const plantable = targets.filter((i) => {
+    const t = farm.tiles[i];
+    return t && !t.crop;
+  });
+  if (plantable.length === 0) return { kind: "blocked", reason: "invalid" };
 
-  // Plant on tilled, empty soil
-  if (tile.tilled && !tile.crop) {
-    const targets = rowExtension(index, eco.upgradeLevels.plantSpeed);
-    const plantable = targets.filter((i) => {
-      const t = farm.tiles[i];
-      return t && t.tilled && !t.crop;
-    });
-    const cropDef = CROPS[run.selectedCrop];
-    const totalCost = cropDef.seedCost * plantable.length;
-    if (plantable.length === 0) return { kind: "blocked", reason: "invalid" };
-    if (!eco.spendCoins(totalCost)) return { kind: "blocked", reason: "cant-afford" };
-    plantable.forEach((i) => farm.plantTile(i, run.selectedCrop));
-    return { kind: "planted", count: plantable.length };
-  }
+  const cropDef = CROPS[run.selectedCrop];
+  const totalCost = cropDef.seedCost * plantable.length;
+  if (!eco.spendCoins(totalCost)) return { kind: "blocked", reason: "cant-afford" };
 
-  // Water a growing, unwatered crop
-  if (tile.crop && !tile.crop.wateredAt) {
-    const targets = plusShape(index, eco.upgradeLevels.wateringRange);
-    let count = 0;
-    for (const i of targets) {
-      const t = farm.tiles[i];
-      if (t && t.crop && !t.crop.wateredAt) {
-        farm.waterTile(i);
-        count++;
-      }
-    }
-    return { kind: "watered", count };
-  }
+  plantable.forEach((i) => farm.plantTile(i, run.selectedCrop));
+  return { kind: "planted", count: plantable.length };
+}
 
-  // Harvest a ready crop
-  if (tile.crop) {
-    const stage = computeStage(
-      tile.crop.plantedAt,
-      tile.crop.wateredAt,
-      eco.upgradeLevels.growthSpeed
-    );
-    if (stage < 3) return { kind: "blocked", reason: "not-ready" };
+/** Waters the crop at `index` and any tiles the watering-can upgrade extends to. */
+export function waterAt(index: number): TileActionResult {
+  const farm = useFarmStore.getState();
+  const eco = useEconomyStore.getState();
+  const tile = farm.tiles[index];
+  if (!tile) return { kind: "blocked", reason: "invalid" };
 
-    const targets = rowExtension(index, eco.upgradeLevels.tractor);
-    let coins = 0;
-    let count = 0;
-    for (const i of targets) {
-      const t = farm.tiles[i];
-      if (!t || !t.crop) continue;
-      const s = computeStage(t.crop.plantedAt, t.crop.wateredAt, eco.upgradeLevels.growthSpeed);
-      if (s < 3) continue;
-      coins += CROPS[t.crop.type].sellPrice;
-      farm.clearTile(i);
+  const targets = plusShape(index, eco.upgradeLevels.wateringRange);
+  let count = 0;
+  for (const i of targets) {
+    const t = farm.tiles[i];
+    if (t && t.crop && !t.crop.wateredAt) {
+      farm.waterTile(i);
       count++;
     }
-    if (count === 0) return { kind: "blocked", reason: "not-ready" };
-    eco.addCoins(coins);
-    run.earnCoinsThisRun(coins);
-    return { kind: "harvested", count, coins };
   }
+  if (count === 0) return { kind: "blocked", reason: "invalid" };
+  return { kind: "watered", count };
+}
 
-  return { kind: "blocked", reason: "invalid" };
+/** Harvests a ready crop at `index` and any tractor-extended tiles that are also ready. */
+export function harvestAt(index: number): TileActionResult {
+  const farm = useFarmStore.getState();
+  const eco = useEconomyStore.getState();
+  const run = useRunStore.getState();
+  const tile = farm.tiles[index];
+  if (!tile || !tile.crop) return { kind: "blocked", reason: "invalid" };
+
+  const stage = computeStage(tile.crop.plantedAt, tile.crop.wateredAt, eco.upgradeLevels.growthSpeed);
+  if (stage < 3) return { kind: "blocked", reason: "not-ready" };
+
+  const targets = rowExtension(index, eco.upgradeLevels.tractor);
+  let coins = 0;
+  let count = 0;
+  for (const i of targets) {
+    const t = farm.tiles[i];
+    if (!t || !t.crop) continue;
+    const s = computeStage(t.crop.plantedAt, t.crop.wateredAt, eco.upgradeLevels.growthSpeed);
+    if (s < 3) continue;
+    coins += CROPS[t.crop.type].sellPrice;
+    farm.clearTile(i);
+    count++;
+  }
+  if (count === 0) return { kind: "blocked", reason: "not-ready" };
+  eco.addCoins(coins);
+  run.earnCoinsThisRun(coins);
+  return { kind: "harvested", count, coins };
+}
+
+/** Returns true (and harvests) if the tile at `index` has a ready crop — used for walk-over auto-harvest. */
+export function tryAutoHarvest(index: number): boolean {
+  const farm = useFarmStore.getState();
+  const tile = farm.tiles[index];
+  if (!tile?.crop) return false;
+  const eco = useEconomyStore.getState();
+  const stage = computeStage(tile.crop.plantedAt, tile.crop.wateredAt, eco.upgradeLevels.growthSpeed);
+  if (stage < 3) return false;
+  harvestAt(index);
+  return true;
 }

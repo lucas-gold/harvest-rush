@@ -14,15 +14,15 @@ import {
 export interface WaveStateEntity {
   type: "waveState";
   phase: "intermission" | "spawning";
-  intermissionUntil: number;
+  intermissionUntil: number; // -1 = not yet set (waiting for first tick's time base)
   lastSpawnAt: number;
 }
 
-export function createWaveState(now: number): WaveStateEntity {
+export function createWaveState(): WaveStateEntity {
   return {
     type: "waveState",
     phase: "intermission",
-    intermissionUntil: now + WAVE_INTERMISSION_MS,
+    intermissionUntil: -1,
     lastSpawnAt: 0,
   };
 }
@@ -33,6 +33,13 @@ export function waveSpawnerSystem(entities: EntitiesMap, { time }: any): Entitie
   const waveState = (entities as any).waveState as WaveStateEntity | undefined;
   const run = useRunStore.getState();
   if (!waveState || run.status !== "playing") return entities;
+
+  // GameEngine's `time.current` comes from requestAnimationFrame, which is
+  // relative to app start — not Date.now(). Seed the first deadline off the
+  // engine's own clock rather than assuming a value up front.
+  if (waveState.intermissionUntil < 0) {
+    waveState.intermissionUntil = time.current + WAVE_INTERMISSION_MS;
+  }
 
   if (waveState.phase === "intermission") {
     if (time.current >= waveState.intermissionUntil) {

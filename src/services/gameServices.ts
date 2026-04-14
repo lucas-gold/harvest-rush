@@ -36,7 +36,9 @@ export async function signIn(): Promise<boolean> {
   if (Platform.OS !== "ios" && Platform.OS !== "android") return false;
   const GameServices = getNativeModule();
   if (!GameServices) {
-    console.warn(
+    // Expected in Expo Go / before a dev client build — logged, not warned,
+    // so it doesn't trip LogBox's warning banner during normal dev.
+    console.log(
       "[gameServices] Native game services module unavailable — run a dev client / EAS build (not Expo Go) to test Game Center / Play Games."
     );
     return false;
@@ -46,7 +48,9 @@ export async function signIn(): Promise<boolean> {
     signedIn = true;
     return true;
   } catch (err) {
-    console.warn("[gameServices] sign-in failed", err);
+    // Also expected until Game Center / Play Games is set up server-side
+    // (see README) — logged, not warned.
+    console.log("[gameServices] sign-in failed", err);
     return false;
   }
 }
