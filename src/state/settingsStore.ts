@@ -1,29 +1,17 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
+export type ControlScheme = "dragBoostButton" | "dragDistanceBoost" | "dpadBoostButton";
 
 interface SettingsState {
-  soundOn: boolean;
   hapticsOn: boolean;
-  cloudSyncEnabled: boolean;
-  toggleSound: () => void;
   toggleHaptics: () => void;
-  toggleCloudSync: () => void;
+  controlScheme: ControlScheme;
+  setControlScheme: (scheme: ControlScheme) => void;
 }
 
-export const useSettingsStore = create<SettingsState>()(
-  persist(
-    (set) => ({
-      soundOn: true,
-      hapticsOn: true,
-      cloudSyncEnabled: true,
-      toggleSound: () => set((s) => ({ soundOn: !s.soundOn })),
-      toggleHaptics: () => set((s) => ({ hapticsOn: !s.hapticsOn })),
-      toggleCloudSync: () => set((s) => ({ cloudSyncEnabled: !s.cloudSyncEnabled })),
-    }),
-    {
-      name: "harvestrush.settings",
-      storage: createJSONStorage(() => AsyncStorage),
-    }
-  )
-);
+export const useSettingsStore = create<SettingsState>()((set) => ({
+  hapticsOn: true,
+  toggleHaptics: () => set((s) => ({ hapticsOn: !s.hapticsOn })),
+  controlScheme: "dragBoostButton",
+  setControlScheme: (controlScheme) => set({ controlScheme }),
+}));

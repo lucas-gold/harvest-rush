@@ -1,27 +1,18 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { DEFAULT_CUSTOMIZATION, FarmerCustomization } from "../pixelart/sprites";
+import { AvatarCustomization, DEFAULT_CUSTOMIZATION } from "../pixelart/sprites";
 
+// Deliberately not persisted — accounts are session-only for now. Pick a
+// name and an avatar each time you open the app.
 interface PlayerState {
   name: string;
-  customization: FarmerCustomization;
+  customization: AvatarCustomization;
   setName: (name: string) => void;
-  setCustomization: (patch: Partial<FarmerCustomization>) => void;
+  setCustomization: (patch: Partial<AvatarCustomization>) => void;
 }
 
-export const usePlayerStore = create<PlayerState>()(
-  persist(
-    (set) => ({
-      name: "Farmer",
-      customization: DEFAULT_CUSTOMIZATION,
-      setName: (name) => set({ name: name.trim().slice(0, 16) || "Farmer" }),
-      setCustomization: (patch) =>
-        set((s) => ({ customization: { ...s.customization, ...patch } })),
-    }),
-    {
-      name: "harvestrush.player",
-      storage: createJSONStorage(() => AsyncStorage),
-    }
-  )
-);
+export const usePlayerStore = create<PlayerState>()((set) => ({
+  name: "",
+  customization: DEFAULT_CUSTOMIZATION,
+  setName: (name) => set({ name: name.trim().slice(0, 16) }),
+  setCustomization: (patch) => set((s) => ({ customization: { ...s.customization, ...patch } })),
+}));
