@@ -29,8 +29,7 @@
     },
     "plugins": [
       "expo-splash-screen",
-      "expo-font",
-      "react-native-expo-game-kit"
+      "expo-font"
     ]
   }
 }
