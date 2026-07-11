@@ -40,26 +40,55 @@ If `server/web-client/index.html` doesn't exist, the server just skips
 static file serving and runs API/WS-only — handy for local dev where you
 usually run the Expo dev server separately instead.
 
-## Deploying for under $5/mo
+## Deployment
 
-This is a single long-running Node process holding WebSocket connections
-and an in-memory tick loop, so it needs a real (not serverless) host. A
-few options that fit the budget:
+**Currently live on Fly.io**: `harvest-rush-arena` app, `iad` region, one
+always-on `shared-cpu-1x` / 256MB machine (~$2/mo — Fly no longer has a
+free tier, a card is required). `wss://harvest-rush-arena.fly.dev/ws`,
+health check at `https://harvest-rush-arena.fly.dev/health`.
 
-- **Fly.io** — a `shared-cpu-1x` / 256MB machine is normally free or ~$2-4/mo
-  depending on usage; supports WebSockets natively. `fly launch` from this
-  directory (it'll pick up the Dockerfile).
-- **A small VPS** — Hetzner CX22 (~€4.5/mo), DigitalOcean/Vultr $4-6/mo
+```bash
+cd server
+flyctl deploy          # rebuild + redeploy after changes
+flyctl status           # check machine state
+flyctl logs              # tail server logs
+```
+
+Two things `fly launch` gets wrong by default for this project, already
+fixed in `fly.toml` but worth knowing if you ever regenerate it:
+
+- It defaults to a 1GB machine (`[[vm]] memory_mb = 1024`) — this app
+  runs fine on 256MB, and memory is a big chunk of the bill, so it's set
+  to `memory_mb = 256` here.
+- `fly deploy` creates a second machine for zero-downtime redundancy by
+  default, silently doubling the cost. Run `flyctl scale count 1` once
+  after the first deploy to drop back to a single machine, or set
+  `min_machines_running` accordingly — a config hiccup you'd otherwise
+  pay for every month without noticing.
+- The generated `[http_service]` block defaults to
+  `auto_stop_machines = 'stop'` / `min_machines_running = 0`, which
+  means the machine suspends when idle and the next connection eats a
+  cold start. This project sets `auto_stop_machines = false` and
+  `min_machines_running = 1` instead, since avoiding that cold start was
+  the whole point of moving off the free tier.
+
+Alternatives if you ever want to move off Fly:
+
+- **A small VPS** — Hetzner CX22 (~€4.35-7.99/mo depending on region/plan
+  changes, worth checking current pricing), DigitalOcean/Vultr $4-6/mo
   droplet. `docker build -t arena . && docker run -p 8787:8787 arena`, put
   it behind a reverse proxy (Caddy is the least fuss — automatic HTTPS/WSS)
-  if you want a real domain.
-- **Railway hobby tier** (~$5/mo) also works fine if you'd rather not touch
-  a raw VPS.
+  if you want a real domain. More setup, more raw resources per dollar.
+- **Render** — free tier exists (sleeps after 15 min idle, ~30-60s cold
+  start on wake) or a $7/mo Starter plan for always-on. Simplest
+  GitHub-connected deploy flow of the three, but pricier than Fly for the
+  always-on case.
 
 Whichever you pick, you need `wss://` (TLS) in production — browsers and
-mobile OSes increasingly refuse plaintext `ws://` from an https page.
-Terminate TLS at a reverse proxy (Caddy/nginx/the platform's built-in
-proxy) in front of this process; the app itself only speaks plain HTTP/WS.
+mobile OSes increasingly refuse plaintext `ws://` from an https page. Fly
+and Render both terminate TLS for you automatically; a raw VPS needs a
+reverse proxy (Caddy/nginx) doing that in front of this process, which
+only speaks plain HTTP/WS itself.
 
 ### Capacity expectations
 

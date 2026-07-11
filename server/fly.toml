@@ -1,0 +1,22 @@
+# fly.toml app configuration file generated for harvest-rush-arena on 2026-08-05T17:45:20-04:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'harvest-rush-arena'
+primary_region = 'iad'
+
+[build]
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 256

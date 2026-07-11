@@ -131,6 +131,18 @@ src/
   state/                  in-memory-only player/settings stores (nothing persists)
 ```
 
+## Live server
+
+Deployed on Fly.io (`iad` region, single always-on 256MB machine, ~$2/mo): **`wss://harvest-rush-arena.fly.dev/ws`**
+— health check at <https://harvest-rush-arena.fly.dev/health>. Redeploy after server changes with
+`cd server && flyctl deploy`.
+
+To point any client build at it instead of a local server:
+
+```bash
+EXPO_PUBLIC_ARENA_WS_URL=wss://harvest-rush-arena.fly.dev/ws npx expo start --web
+```
+
 ## Running locally
 
 ```bash
@@ -144,10 +156,11 @@ npm install
 npx expo start --web
 ```
 
-The client defaults to `ws://localhost:8787/ws`; override with
-`EXPO_PUBLIC_ARENA_WS_URL` for testing against a deployed server. To try real multiplayer
-locally, open the web client in two browser tabs (or a phone on the same network pointed at your
-machine's LAN IP) — each is a separate connection/player against the same local server.
+The client defaults to `ws://localhost:8787/ws` when `EXPO_PUBLIC_ARENA_WS_URL` isn't set, so
+local runs hit your local server, not production, unless you explicitly point them at it (see
+above). To try real multiplayer locally, open the web client in two browser tabs (or a phone on
+the same network pointed at your machine's LAN IP) — each is a separate connection/player against
+the same local server.
 
 For iOS/Android native builds:
 
