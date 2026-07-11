@@ -2,13 +2,20 @@ import React, { useMemo, useRef } from "react";
 import { View, Text, StyleSheet, useWindowDimensions } from "react-native";
 import { useArenaStore } from "../multiplayer/arenaStore";
 import { AvatarView } from "../avatar/AvatarView";
+import { PixelCanvas } from "../pixelart/PixelCanvas";
+import { buildGroundCropSprite, buildSeedlingSprite } from "../pixelart/cropSprites";
 import { PixelText } from "../theme/PixelText";
+import { BackpackStack } from "./BackpackStack";
+import { FarmField } from "./FarmField";
 import { computeZoom, isInViewport, worldToScreen } from "./camera";
-import { directionFromVector, radiusForCrops } from "./gameMath";
+import { PLAYER_BASE_RADIUS, directionFromVector } from "./gameMath";
 
-const CROP_WORLD_SIZE = 12;
-const SEEDLING_WORLD_SIZE = 7;
+const CROP_WORLD_SIZE = 20;
+const SEEDLING_WORLD_SIZE = 14;
 const CULL_MARGIN = 80;
+
+const groundCropMatrix = buildGroundCropSprite();
+const seedlingMatrix = buildSeedlingSprite();
 
 export function ArenaCanvas() {
   const { width, height } = useWindowDimensions();
@@ -30,6 +37,8 @@ export function ArenaCanvas() {
 
   const boundaryScreen = worldToScreen(0, 0, camera, width, height);
   const boundaryDiameter = arenaRadius * 2 * camera.zoom;
+  const boundaryLeft = boundaryScreen.x - boundaryDiameter / 2;
+  const boundaryTop = boundaryScreen.y - boundaryDiameter / 2;
 
   const visibleCrops = useMemo(
     () =>
@@ -45,7 +54,7 @@ export function ArenaCanvas() {
   );
   const visiblePlayers = useMemo(
     () =>
-      Object.values(players).filter((p) => isInViewport(p.x, p.y, camera, width, height, 150)),
+      Object.values(players).filter((p) => isInViewport(p.x, p.y, camera, width, height, 250)),
     [players, camera, width, height]
   );
 
@@ -53,10 +62,31 @@ export function ArenaCanvas() {
     <View style={StyleSheet.absoluteFill}>
       <View
         style={[
-          styles.boundary,
+          styles.boundaryFill,
           {
-            left: boundaryScreen.x - boundaryDiameter / 2,
-            top: boundaryScreen.y - boundaryDiameter / 2,
+            left: boundaryLeft,
+            top: boundaryTop,
+            width: boundaryDiameter,
+            height: boundaryDiameter,
+            borderRadius: boundaryDiameter / 2,
+          },
+        ]}
+      >
+        <FarmField
+          camera={camera}
+          viewportWidth={width}
+          viewportHeight={height}
+          offsetX={boundaryLeft}
+          offsetY={boundaryTop}
+        />
+      </View>
+      <View
+        pointerEvents="none"
+        style={[
+          styles.boundaryRing,
+          {
+            left: boundaryLeft,
+            top: boundaryTop,
             width: boundaryDiameter,
             height: boundaryDiameter,
             borderRadius: boundaryDiameter / 2,
@@ -66,44 +96,33 @@ export function ArenaCanvas() {
 
       {visibleSeedlings.map((s) => {
         const pos = worldToScreen(s.x, s.y, camera, width, height);
-        const size = Math.max(3, SEEDLING_WORLD_SIZE * camera.zoom);
-        const grownFrac = Math.min(1, (Date.now() - s.plantedAt) / 30000);
+        const size = Math.max(6, SEEDLING_WORLD_SIZE * camera.zoom);
         return (
           <View
             key={s.id}
-            style={[
-              styles.seedling,
-              {
-                left: pos.x - size / 2,
-                top: pos.y - size / 2,
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                opacity: 0.5 + grownFrac * 0.5,
-              },
-            ]}
-          />
+            style={{ position: "absolute", left: pos.x - size / 2, top: pos.y - size / 2, width: size, height: size }}
+          >
+            <PixelCanvas matrix={seedlingMatrix} size={size} />
+          </View>
         );
       })}
 
       {visibleCrops.map((c) => {
         const pos = worldToScreen(c.x, c.y, camera, width, height);
-        const size = Math.max(4, CROP_WORLD_SIZE * camera.zoom);
+        const size = Math.max(8, CROP_WORLD_SIZE * camera.zoom);
         return (
           <View
             key={c.id}
-            style={[
-              styles.crop,
-              { left: pos.x - size / 2, top: pos.y - size / 2, width: size, height: size, borderRadius: size / 2 },
-            ]}
-          />
+            style={{ position: "absolute", left: pos.x - size / 2, top: pos.y - size / 2, width: size, height: size }}
+          >
+            <PixelCanvas matrix={groundCropMatrix} size={size} />
+          </View>
         );
       })}
 
       {visiblePlayers.map((p) => {
         const pos = worldToScreen(p.x, p.y, camera, width, height);
-        const r = radiusForCrops(p.crops) * camera.zoom;
-        const isSelf = p.id === selfId;
+        const r = PLAYER_BASE_RADIUS * camera.zoom;
         const moving = p.dirX !== 0 || p.dirY !== 0;
         const dir = directionFromVector(p.dirX, p.dirY, lastDirRef.current[p.id] ?? "down");
         lastDirRef.current[p.id] = dir;
@@ -121,18 +140,21 @@ export function ArenaCanvas() {
               alignItems: "center",
             }}
           >
-            <View
-              style={[
-                styles.avatarRing,
-                {
-                  width: r * 2,
-                  height: r * 2,
-                  borderRadius: r,
-                  borderColor: isSelf ? "#fff8e7" : invuln ? "#e0433a" : "transparent",
-                },
-              ]}
-            >
-              <AvatarView customization={p.avatar} size={r * 1.8} direction={dir} walkFrame={moving ? walkFrame : 0} />
+            <View style={{ width: r * 2, height: r * 2, alignItems: "center", justifyContent: "center" }}>
+              <BackpackStack crops={p.crops} size={r * 2.4} />
+              <View
+                style={[
+                  styles.avatarRing,
+                  {
+                    width: r * 2,
+                    height: r * 2,
+                    borderRadius: r,
+                    borderColor: invuln ? "#e0433a" : "transparent",
+                  },
+                ]}
+              >
+                <AvatarView customization={p.avatar} size={r * 1.8} direction={dir} walkFrame={moving ? walkFrame : 0} />
+              </View>
             </View>
             <View style={styles.nameRow}>
               <PixelText weight="semibold" style={styles.nameLabel} numberOfLines={1}>
@@ -148,21 +170,15 @@ export function ArenaCanvas() {
 }
 
 const styles = StyleSheet.create({
-  boundary: {
+  boundaryFill: {
+    position: "absolute",
+    backgroundColor: "#2f5d33",
+    overflow: "hidden",
+  },
+  boundaryRing: {
     position: "absolute",
     borderWidth: 6,
     borderColor: "#e0433a",
-    backgroundColor: "#2f5d33",
-  },
-  crop: {
-    position: "absolute",
-    backgroundColor: "#63d15a",
-    borderWidth: 1,
-    borderColor: "#3d9c3a",
-  },
-  seedling: {
-    position: "absolute",
-    backgroundColor: "#9adf7a",
   },
   avatarRing: {
     alignItems: "center",

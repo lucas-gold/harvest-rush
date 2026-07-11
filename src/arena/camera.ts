@@ -44,3 +44,22 @@ export function isInViewport(
     Math.abs(worldX - camera.x) <= halfW && Math.abs(worldY - camera.y) <= halfH
   );
 }
+
+/** World-space bounds currently visible, plus a margin — for tiling a
+ * background pattern across just what's on screen instead of the whole
+ * arena. */
+export function getViewportWorldBounds(
+  camera: Camera,
+  viewportWidth: number,
+  viewportHeight: number,
+  marginWorld: number
+): { minX: number; maxX: number; minY: number; maxY: number } {
+  const halfW = viewportWidth / 2 / camera.zoom + marginWorld;
+  const halfH = viewportHeight / 2 / camera.zoom + marginWorld;
+  return {
+    minX: camera.x - halfW,
+    maxX: camera.x + halfW,
+    minY: camera.y - halfH,
+    maxY: camera.y + halfH,
+  };
+}

@@ -29,3 +29,39 @@ export function clampToCircle(x: number, y: number, radius: number): { x: number
   const scale = radius / d;
   return { x: x * scale, y: y * scale };
 }
+
+/**
+ * Did two circles overlap at any point while moving linearly from their
+ * tick-start to tick-end positions? A single end-of-tick distance check
+ * misses fast-moving pairs that cross paths entirely within one tick
+ * (e.g. two boosting players closing at ~800 units/sec against a ~32-unit
+ * collision radius at 15 ticks/sec covers ~52 units per tick) — this
+ * solves for the closest approach across the whole tick instead.
+ */
+export function sweptCircleOverlap(
+  relStartX: number,
+  relStartY: number,
+  relEndX: number,
+  relEndY: number,
+  radiusSum: number
+): boolean {
+  const px = relStartX;
+  const py = relStartY;
+  const vx = relEndX - relStartX;
+  const vy = relEndY - relStartY;
+
+  const c = px * px + py * py - radiusSum * radiusSum;
+  if (c <= 0) return true; // already overlapping at the start of this tick
+
+  const a = vx * vx + vy * vy;
+  if (a < 1e-9) return false; // no relative motion this tick, and not already overlapping
+
+  const b = 2 * (px * vx + py * vy);
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return false; // relative path never comes within radiusSum
+
+  const sqrtDisc = Math.sqrt(disc);
+  const t1 = (-b - sqrtDisc) / (2 * a);
+  const t2 = (-b + sqrtDisc) / (2 * a);
+  return t2 >= 0 && t1 <= 1; // overlap window intersects this tick's [0,1]
+}

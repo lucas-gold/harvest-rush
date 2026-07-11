@@ -1,6 +1,6 @@
 import type { WebSocket } from "ws";
 import * as C from "./constants";
-import { randomId, randomPointInCircle, dist2, clampToCircle } from "./util";
+import { randomId, randomPointInCircle, dist2, clampToCircle, sweptCircleOverlap } from "./util";
 import { randomBotAvatar, randomBotName } from "./bots";
 import {
   AvatarCustomization,
@@ -253,11 +253,15 @@ export class Room {
     const dt = C.TICK_MS / 1000;
 
     this.updateBots(now);
+
+    const preMove = new Map<string, { x: number; y: number }>();
+    for (const p of this.players.values()) preMove.set(p.id, { x: p.x, y: p.y });
+
     this.updateMovementAndBoost(now, dt);
     this.handleCropPickups();
     this.updateSeedlings(now);
     this.spawnAmbientSeedlings();
-    this.handleCollisions(now);
+    this.handleCollisions(now, preMove);
     this.flush();
   }
 
@@ -339,7 +343,7 @@ export class Room {
     }
   }
 
-  private handleCollisions(now: number) {
+  private handleCollisions(now: number, preMove: Map<string, { x: number; y: number }>) {
     const list = [...this.players.values()];
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
@@ -350,12 +354,29 @@ export class Room {
         const ra = this.radiusFor(a.crops);
         const rb = this.radiusFor(b.crops);
         const rSum = ra + rb;
-        if (dist2(a.x, a.y, b.x, b.y) > rSum * rSum) continue;
 
+        // Swept check across this whole tick's movement, not just the
+        // end-of-tick position — a point check misses fast-moving pairs
+        // (especially boosting) that cross paths within a single tick.
+        const preA = preMove.get(a.id) ?? { x: a.x, y: a.y };
+        const preB = preMove.get(b.id) ?? { x: b.x, y: b.y };
+        const overlapped = sweptCircleOverlap(
+          preA.x - preB.x,
+          preA.y - preB.y,
+          a.x - b.x,
+          a.y - b.y,
+          rSum
+        );
+        if (!overlapped) continue;
+
+        // Require a real crop advantage — at 0-vs-0 the ratio check alone
+        // (0 >= 0 * RATIO) would call it a "win" and pop someone for no
+        // reason, which reads as a bug the first time two empty players
+        // bump into each other.
         let winner: InternalPlayer | null = null;
         let loser: InternalPlayer | null = null;
-        if (a.crops >= b.crops * C.RAM_WIN_RATIO) [winner, loser] = [a, b];
-        else if (b.crops >= a.crops * C.RAM_WIN_RATIO) [winner, loser] = [b, a];
+        if (a.crops > 0 && a.crops >= b.crops * C.RAM_WIN_RATIO) [winner, loser] = [a, b];
+        else if (b.crops > 0 && b.crops >= a.crops * C.RAM_WIN_RATIO) [winner, loser] = [b, a];
         if (!winner || !loser) continue; // too close in size — harmless bump
 
         // Bots never attack: if a bot would "win" the exchange, just ignore

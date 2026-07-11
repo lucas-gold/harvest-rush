@@ -1,12 +1,27 @@
 import { Direction } from "../pixelart/sprites";
 
 // Mirrors server/src/constants.ts PLAYER_BASE_RADIUS / PLAYER_RADIUS_PER_SQRT_CROP
-// — keep in sync so avatars are drawn the size the server actually collides at.
-const PLAYER_BASE_RADIUS = 16;
+// — keep in sync so the collision hitbox (invisible, server-authoritative)
+// and the backpack stack's visual growth stay proportional to each other.
+export const PLAYER_BASE_RADIUS = 16;
 const PLAYER_RADIUS_PER_SQRT_CROP = 2.4;
 
+/** The actual (server-authoritative) collision radius — used for backpack
+ * stack sizing, not for the avatar sprite itself, which stays a fixed
+ * size regardless of crop count. */
 export function radiusForCrops(crops: number): number {
   return PLAYER_BASE_RADIUS + Math.sqrt(Math.max(0, crops)) * PLAYER_RADIUS_PER_SQRT_CROP;
+}
+
+const WORLD_UNITS_PER_BUNDLE = 4;
+const MAX_BUNDLES = 12;
+
+/** How many wheat bundles to show in a player's backpack pile — scaled
+ * off the same growth curve as the real hitbox, so a taller pile is an
+ * honest read of "how much bigger a target this player actually is." */
+export function bundleCountForCrops(crops: number): number {
+  const growth = radiusForCrops(crops) - PLAYER_BASE_RADIUS;
+  return Math.min(MAX_BUNDLES, Math.floor(growth / WORLD_UNITS_PER_BUNDLE));
 }
 
 export function directionFromVector(dirX: number, dirY: number, fallback: Direction): Direction {

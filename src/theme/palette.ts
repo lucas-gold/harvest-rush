@@ -18,11 +18,22 @@ export const PALETTE = {
   hatStrawDark: "#b89a4e",
 
   arenaGround: "#2f5d33",
-  arenaGroundDark: "#294f2c",
+  arenaGroundDark: "#2b562f",
   arenaBoundary: "#e0433a",
-  cropGreen: "#63d15a",
-  cropGreenDark: "#3d9c3a",
-  seedling: "#9adf7a",
+
+  // Wheat — crops in the ground, the backpack stack, and planted seedlings
+  // all share this family for visual consistency.
+  wheatGold: "#e8c14a",
+  wheatGoldDark: "#c79b2e",
+  wheatStalk: "#8a9c3a",
+  wheatStalkDark: "#5f6e26",
+  soilBrown: "#6b4226",
+  soilBrownDark: "#4a2c19",
+  sproutGreen: "#7bc95e",
+  sproutGreenDark: "#4a9e3a",
+  backpackBrown: "#8a5a34",
+  backpackBrownDark: "#5c3b1e",
+  bindingBrown: "#4a2c19",
 
   outline: "#1a140f",
   white: "#ffffff",

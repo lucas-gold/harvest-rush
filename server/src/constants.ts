@@ -34,10 +34,10 @@ export const SEEDLING_GROW_MS = 30_000;
 /** Ambient seedling spawning: every tick we compare how many crops+seedlings
  * currently exist against a target density that scales with room population,
  * and spawn toward that target. */
-export const SPAWN_BASE_TARGET = 40;
-export const SPAWN_TARGET_PER_PLAYER = 4;
-export const SPAWN_MAX_PER_TICK = 3;
-export const WORLD_ENTITY_CAP = 260; // hard ceiling on crops+seedlings combined
+export const SPAWN_BASE_TARGET = 140;
+export const SPAWN_TARGET_PER_PLAYER = 10;
+export const SPAWN_MAX_PER_TICK = 6;
+export const WORLD_ENTITY_CAP = 700; // hard ceiling on crops+seedlings combined
 
 /** PvP: colliding with a smaller/lighter player scatters this fraction of
  * their stack; the rest stays with them so a graze isn't a death sentence. */
