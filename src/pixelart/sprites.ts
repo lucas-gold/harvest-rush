@@ -53,9 +53,13 @@ export function buildAvatarSprite(
     fillRect(m, 2, 2, 12, 1, "hatStrawDark");
   }
 
-  // Hair (back of head shows more when facing up/away)
+  // Hair (back of head shows more when facing up/away). Without a hat,
+  // hair starts higher (row 1 vs row 3) but must also stand taller to
+  // stay contiguous with the face rect starting at row 5 — otherwise
+  // there's a gap of bare scalp between the hair and the head.
   const hairTop = custom.hat ? 3 : 1;
-  fillRect(m, 5, hairTop, 6, direction === "up" ? 5 : 2, custom.hairColor);
+  const hairHeight = direction === "up" ? 5 : custom.hat ? 2 : 4;
+  fillRect(m, 5, hairTop, 6, hairHeight, custom.hairColor);
 
   // Face / skin
   if (!facingSide) {

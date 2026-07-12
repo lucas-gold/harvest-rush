@@ -38,7 +38,7 @@ export function EntryScreen({ navigation }: Props) {
         <ScrollView contentContainerStyle={styles.content}>
           <PixelText style={styles.title}>Harvest Rush</PixelText>
           <PixelText weight="semibold" style={styles.subtitle}>
-            Collect crops. Watch your back.
+            Collect crops. Grow your score
           </PixelText>
 
           <AvatarPicker />
@@ -63,10 +63,6 @@ export function EntryScreen({ navigation }: Props) {
           </Pressable>
 
           {Platform.OS !== "web" && <ControlSchemePicker />}
-
-          <PixelText weight="semibold" style={styles.hint}>
-            No account needed — pick a name and go.
-          </PixelText>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -107,5 +103,4 @@ const styles = StyleSheet.create({
   },
   playButtonDisabled: { opacity: 0.4 },
   playButtonText: { color: "#fff", fontSize: 18 },
-  hint: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 },
 });

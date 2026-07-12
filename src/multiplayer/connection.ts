@@ -1,11 +1,11 @@
 import { AvatarCustomization, ClientMessage, ServerMessage } from "./protocol";
 import { useArenaStore } from "./arenaStore";
 
-// Set EXPO_PUBLIC_ARENA_WS_URL at build time for real deploys (e.g.
-// "wss://yourdomain.com/ws"). Left unset, this only works against a server
-// running on the same machine — fine for local dev, not for device testing
-// against a remote box. See server/README.md.
-const DEFAULT_WS_URL = process.env.EXPO_PUBLIC_ARENA_WS_URL || "ws://localhost:8787/ws";
+// Defaults to the live deployed server so the app works out of the box
+// without a local server running. Override with EXPO_PUBLIC_ARENA_WS_URL
+// (e.g. "ws://localhost:8787/ws") when iterating against a local server —
+// see server/README.md.
+const DEFAULT_WS_URL = process.env.EXPO_PUBLIC_ARENA_WS_URL || "wss://harvest-rush-arena.fly.dev/ws";
 
 let socket: WebSocket | null = null;
 let inputThrottleId: ReturnType<typeof setTimeout> | null = null;
