@@ -20,7 +20,7 @@ function handleMessage(msg: ServerMessage) {
       store._setWelcome(msg);
       break;
     case "state":
-      store._applyState(msg.players, msg.leaderboard, msg.playerCount);
+      store._applyState(msg.players, msg.leaderboard, msg.playerCount, msg.arenaRadius);
       break;
     case "cropSpawn":
       store._addCrops(msg.crops);

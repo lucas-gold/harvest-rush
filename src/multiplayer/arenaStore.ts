@@ -28,7 +28,12 @@ interface ArenaState {
     crops: CropSnapshot[];
     seedlings: SeedlingSnapshot[];
   }) => void;
-  _applyState: (players: PlayerSnapshot[], leaderboard: LeaderboardEntry[], playerCount: number) => void;
+  _applyState: (
+    players: PlayerSnapshot[],
+    leaderboard: LeaderboardEntry[],
+    playerCount: number,
+    arenaRadius: number
+  ) => void;
   _addCrops: (crops: CropSnapshot[]) => void;
   _removeCrops: (ids: string[]) => void;
   _addSeedlings: (seedlings: SeedlingSnapshot[]) => void;
@@ -66,11 +71,12 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
       status: "connected",
     }),
 
-  _applyState: (players, leaderboard, playerCount) =>
+  _applyState: (players, leaderboard, playerCount, arenaRadius) =>
     set({
       players: Object.fromEntries(players.map((p) => [p.id, p])),
       leaderboard,
       playerCount,
+      arenaRadius,
     }),
 
   _addCrops: (crops) =>

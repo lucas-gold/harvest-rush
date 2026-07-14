@@ -57,7 +57,13 @@ export type ServerMessage =
       crops: CropSnapshot[];
       seedlings: SeedlingSnapshot[];
     }
-  | { t: "state"; players: PlayerSnapshot[]; leaderboard: LeaderboardEntry[]; playerCount: number }
+  | {
+      t: "state";
+      players: PlayerSnapshot[];
+      leaderboard: LeaderboardEntry[];
+      playerCount: number;
+      arenaRadius: number;
+    }
   | { t: "cropSpawn"; crops: CropSnapshot[] }
   | { t: "cropRemove"; ids: string[] }
   | { t: "seedlingSpawn"; seedlings: SeedlingSnapshot[] }

@@ -51,6 +51,14 @@ export class Room {
   private seedlings = new Map<string, InternalSeedling>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
+  // Recomputed on join/leave from realPlayerCount() alone — bots always
+  // top up to exactly MIN_LOBBY_POPULATION whenever there's >=1 real
+  // player, so clamping realPlayerCount() into
+  // [MIN_LOBBY_POPULATION, MAX_PLAYERS_PER_ROOM] gives the same answer as
+  // clamping total occupancy would, without an ordering dependency on
+  // whether bots have been (re)spawned yet this call.
+  private arenaRadius = C.arenaRadiusForPopulation(0);
+
   // events accumulated during a tick, flushed once at the end of it
   private pendingCropSpawn: CropSnapshot[] = [];
   private pendingCropRemove: string[] = [];
@@ -59,6 +67,20 @@ export class Room {
 
   constructor(id: string) {
     this.id = id;
+    this.seedInitialCrops();
+  }
+
+  /** A brand-new room starts already at target coverage with fully mature
+   * crops — not empty, growing up from nothing over the next
+   * SEEDLING_GROW_MS. Nobody's connected yet so there's no one to notify;
+   * these just show up in the first join's welcome payload. */
+  private seedInitialCrops() {
+    const target = Math.min(C.WORLD_ENTITY_CAP, this.coverageTarget());
+    for (let i = 0; i < target; i++) {
+      const { x, y } = randomPointInCircle(this.arenaRadius * 0.95);
+      const crop: InternalCrop = { id: randomId("cr"), x, y };
+      this.crops.set(crop.id, crop);
+    }
   }
 
   realPlayerCount(): number {
@@ -89,7 +111,6 @@ export class Room {
 
   join(ws: WebSocket, name: string, avatar: AvatarCustomization): string {
     const id = randomId("p");
-    const spawn = randomPointInCircle(C.ARENA_RADIUS * 0.6);
     const now = Date.now();
     const player: InternalPlayer = {
       id,
@@ -97,8 +118,8 @@ export class Room {
       isBot: false,
       name: name.slice(0, 16) || "Farmer",
       avatar,
-      x: spawn.x,
-      y: spawn.y,
+      x: 0,
+      y: 0,
       dirX: 0,
       dirY: 0,
       boostRequested: false,
@@ -106,16 +127,23 @@ export class Room {
       lastBoostCostAt: 0,
       invulnUntil: now + C.COLLISION_INVULN_MS,
       nextDecisionAt: 0,
-      botTargetX: spawn.x,
-      botTargetY: spawn.y,
+      botTargetX: 0,
+      botTargetY: 0,
     };
     this.players.set(id, player);
+    this.recomputeArenaRadius();
     this.rebalanceBots();
+
+    const spawn = randomPointInCircle(this.arenaRadius * 0.6);
+    player.x = spawn.x;
+    player.y = spawn.y;
+    player.botTargetX = spawn.x;
+    player.botTargetY = spawn.y;
 
     const welcome: ServerMessage = {
       t: "welcome",
       playerId: id,
-      arenaRadius: C.ARENA_RADIUS,
+      arenaRadius: this.arenaRadius,
       tickMs: C.TICK_MS,
       players: [...this.players.values()].map(this.toSnapshot),
       crops: [...this.crops.values()],
@@ -128,6 +156,7 @@ export class Room {
   leave(id: string) {
     if (!this.players.delete(id)) return;
     this.broadcast({ t: "playerLeft", id });
+    this.recomputeArenaRadius();
     this.rebalanceBots();
   }
 
@@ -142,6 +171,36 @@ export class Room {
     p.dirX = mag > 0.001 ? dirX : 0;
     p.dirY = mag > 0.001 ? dirY : 0;
     p.boostRequested = boost;
+  }
+
+  // ---- arena sizing ----
+
+  /** Bigger, busier rooms get more room to roam; a sparse room stays
+   * tighter so it doesn't feel empty. Shrinking prunes anything now
+   * outside the new boundary — growing never needs to (nothing was ever
+   * placed beyond the old, smaller radius). */
+  private recomputeArenaRadius() {
+    const next = C.arenaRadiusForPopulation(this.realPlayerCount());
+    if (next === this.arenaRadius) return;
+    const shrinking = next < this.arenaRadius;
+    this.arenaRadius = next;
+    if (shrinking) this.pruneEntitiesOutsideArena();
+  }
+
+  private pruneEntitiesOutsideArena() {
+    const r2 = this.arenaRadius * this.arenaRadius;
+    for (const crop of this.crops.values()) {
+      if (crop.x * crop.x + crop.y * crop.y > r2) {
+        this.crops.delete(crop.id);
+        this.pendingCropRemove.push(crop.id);
+      }
+    }
+    for (const s of this.seedlings.values()) {
+      if (s.x * s.x + s.y * s.y > r2) {
+        this.seedlings.delete(s.id);
+        this.pendingSeedlingRemove.push(s.id);
+      }
+    }
   }
 
   // ---- bots ----
@@ -161,7 +220,7 @@ export class Room {
 
   private spawnBot() {
     const id = randomId("bot");
-    const spawn = randomPointInCircle(C.ARENA_RADIUS * 0.6);
+    const spawn = randomPointInCircle(this.arenaRadius * 0.6);
     const bot: InternalPlayer = {
       id,
       ws: null,
@@ -216,7 +275,7 @@ export class Room {
       }
     }
     if (nearest) return { x: nearest.x, y: nearest.y };
-    return randomPointInCircle(C.ARENA_RADIUS * 0.9);
+    return randomPointInCircle(this.arenaRadius * 0.9);
   }
 
   // ---- snapshot / networking ----
@@ -282,10 +341,15 @@ export class Room {
       if (p.dirX !== 0 || p.dirY !== 0) {
         p.x += p.dirX * speed * dt;
         p.y += p.dirY * speed * dt;
-        const clamped = clampToCircle(p.x, p.y, C.ARENA_RADIUS - this.radiusFor(p.crops));
-        p.x = clamped.x;
-        p.y = clamped.y;
       }
+
+      // Clamp every tick regardless of movement, not just while moving —
+      // otherwise a stationary player sitting right at the boundary when
+      // the arena shrinks (someone left) stays stranded outside it until
+      // they happen to move again.
+      const clamped = clampToCircle(p.x, p.y, this.arenaRadius - this.radiusFor(p.crops));
+      p.x = clamped.x;
+      p.y = clamped.y;
 
       // bots never boost — they just wander and collect.
       const boosting = !p.isBot && p.boostRequested && p.crops > 0;
@@ -330,15 +394,24 @@ export class Room {
     }
   }
 
+  /** Target entity count is ~TARGET_COVERAGE_FRACTION of the arena's area,
+   * so density stays visually consistent as the arena itself grows/shrinks
+   * with population instead of drifting sparse or overcrowded. */
+  private coverageTarget(): number {
+    const arenaArea = Math.PI * this.arenaRadius * this.arenaRadius;
+    const footprintArea = Math.PI * C.COVERAGE_FOOTPRINT_RADIUS * C.COVERAGE_FOOTPRINT_RADIUS;
+    return Math.floor((C.TARGET_COVERAGE_FRACTION * arenaArea) / footprintArea);
+  }
+
   private spawnAmbientSeedlings() {
-    const target = C.SPAWN_BASE_TARGET + this.players.size * C.SPAWN_TARGET_PER_PLAYER;
+    const target = Math.min(C.WORLD_ENTITY_CAP, this.coverageTarget());
     const current = this.crops.size + this.seedlings.size;
     if (current >= target) return;
     const toSpawn = Math.min(C.SPAWN_MAX_PER_TICK, target - current);
     const now = Date.now();
     for (let i = 0; i < toSpawn; i++) {
       if (this.crops.size + this.seedlings.size >= C.WORLD_ENTITY_CAP) break;
-      const { x, y } = randomPointInCircle(C.ARENA_RADIUS * 0.95);
+      const { x, y } = randomPointInCircle(this.arenaRadius * 0.95);
       this.plantSeedling(x, y, now);
     }
   }
@@ -403,7 +476,7 @@ export class Room {
     const pushed = clampToCircle(
       loser.x + (dx / mag) * C.RAM_KNOCKBACK_DIST,
       loser.y + (dy / mag) * C.RAM_KNOCKBACK_DIST,
-      C.ARENA_RADIUS - this.radiusFor(remaining)
+      this.arenaRadius - this.radiusFor(remaining)
     );
     loser.x = pushed.x;
     loser.y = pushed.y;
@@ -414,7 +487,7 @@ export class Room {
     if (remaining <= C.POP_THRESHOLD_CROPS) {
       this.scatterCrops(loser.x, loser.y, remaining);
       loser.crops = C.STARTING_CROPS;
-      const respawn = randomPointInCircle(C.ARENA_RADIUS * 0.6);
+      const respawn = randomPointInCircle(this.arenaRadius * 0.6);
       loser.x = respawn.x;
       loser.y = respawn.y;
       loser.invulnUntil = now + C.COLLISION_INVULN_MS * 2;
@@ -450,6 +523,7 @@ export class Room {
       players: [...this.players.values()].map(this.toSnapshot),
       leaderboard,
       playerCount: this.realPlayerCount(),
+      arenaRadius: this.arenaRadius,
     });
 
     if (this.pendingCropSpawn.length) {

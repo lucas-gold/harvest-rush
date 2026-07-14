@@ -2,16 +2,22 @@
 // the "feel" of the game (how punishing a hit is, how fast the map refills)
 // comes from how these interact rather than any single value.
 
-/** World units — the arena is a circle of this radius, centered at (0,0). */
-export const ARENA_RADIUS = 1500;
+/** World units — the arena is a circle centered at (0,0). Radius scales
+ * with how many occupants (real players + fill bots) are actually in the
+ * room: a sparsely populated room stays tighter so it doesn't feel empty,
+ * a full one gets the most room to roam. See arenaRadiusForPopulation(). */
+export const ARENA_RADIUS_REFERENCE = 1500; // radius at MAX_PLAYERS_PER_ROOM occupants
+export const ARENA_RADIUS_MIN_FRACTION = 0.75; // radius at MIN_LOBBY_POPULATION occupants (the floor)
+export const ARENA_RADIUS_MAX_FRACTION = 1.0;
 
 /** Players per room before a new lobby is spun up. Keeps a single tiny VPS
  * comfortable — see server/README.md for the capacity math. */
 export const MAX_PLAYERS_PER_ROOM = 40;
 
-/** Simulation + broadcast tick. ~15Hz is plenty smooth for this game's pace
- * and keeps bandwidth/CPU low enough for a <$5/mo box. */
-export const TICK_MS = 66;
+/** Simulation + broadcast tick. 20Hz — tight enough that, combined with
+ * client-side interpolation, movement doesn't read as choppy; still cheap
+ * enough for a <$5/mo box at this player scale. */
+export const TICK_MS = 50;
 
 /** Movement. */
 export const BASE_SPEED = 220; // world units / sec at 0 crops
@@ -29,15 +35,18 @@ export const PLAYER_BASE_RADIUS = 16;
 export const PLAYER_RADIUS_PER_SQRT_CROP = 2.4;
 
 /** Seedlings mature into a collectible crop after this long. */
-export const SEEDLING_GROW_MS = 30_000;
+export const SEEDLING_GROW_MS = 15_000;
 
 /** Ambient seedling spawning: every tick we compare how many crops+seedlings
- * currently exist against a target density that scales with room population,
- * and spawn toward that target. */
-export const SPAWN_BASE_TARGET = 140;
-export const SPAWN_TARGET_PER_PLAYER = 10;
-export const SPAWN_MAX_PER_TICK = 6;
-export const WORLD_ENTITY_CAP = 700; // hard ceiling on crops+seedlings combined
+ * currently exist against a target derived from ground coverage (not a flat
+ * headcount), so density stays consistent as the arena itself grows/shrinks
+ * with population. Each crop/seedling "claims" a personal-space circle of
+ * COVERAGE_FOOTPRINT_RADIUS for this purpose — bigger than its sprite so a
+ * fully-covered board still reads as scattered plants, not solid noise. */
+export const TARGET_COVERAGE_FRACTION = 0.4; // ~40% of the arena's area
+export const COVERAGE_FOOTPRINT_RADIUS = 24;
+export const SPAWN_MAX_PER_TICK = 14;
+export const WORLD_ENTITY_CAP = 2200; // hard safety ceiling on crops+seedlings combined
 
 /** PvP: colliding with a smaller/lighter player scatters this fraction of
  * their stack; the rest stays with them so a graze isn't a death sentence. */
@@ -65,4 +74,18 @@ export const STARTING_CROPS = 0;
 export const MIN_LOBBY_POPULATION = 8;
 export const BOT_DECISION_INTERVAL_MS = 1500;
 export const BOT_PERCEPTION_RADIUS = 500;
+
+/** Arena radius for a room's current total occupancy (real players + fill
+ * bots), interpolating between the two fractions above across the
+ * [MIN_LOBBY_POPULATION, MAX_PLAYERS_PER_ROOM] range. Occupancy below the
+ * floor (shouldn't normally happen — bots top up to it) or above the
+ * ceiling both clamp rather than extrapolate. */
+export function arenaRadiusForPopulation(totalOccupants: number): number {
+  const floor = MIN_LOBBY_POPULATION;
+  const ceil = MAX_PLAYERS_PER_ROOM;
+  const clamped = Math.max(floor, Math.min(ceil, totalOccupants));
+  const t = ceil > floor ? (clamped - floor) / (ceil - floor) : 1;
+  const fraction = ARENA_RADIUS_MIN_FRACTION + t * (ARENA_RADIUS_MAX_FRACTION - ARENA_RADIUS_MIN_FRACTION);
+  return ARENA_RADIUS_REFERENCE * fraction;
+}
 

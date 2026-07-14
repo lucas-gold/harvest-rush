@@ -9,6 +9,7 @@ import { BackpackStack } from "./BackpackStack";
 import { FarmField } from "./FarmField";
 import { computeZoom, isInViewport, worldToScreen } from "./camera";
 import { PLAYER_BASE_RADIUS, directionFromVector } from "./gameMath";
+import { useSmoothedPlayers } from "./useSmoothedPlayers";
 
 const CROP_WORLD_SIZE = 20;
 const SEEDLING_WORLD_SIZE = 14;
@@ -20,7 +21,7 @@ const seedlingMatrix = buildSeedlingSprite();
 export function ArenaCanvas() {
   const { width, height } = useWindowDimensions();
   const selfId = useArenaStore((s) => s.selfId);
-  const players = useArenaStore((s) => s.players);
+  const players = useSmoothedPlayers();
   const crops = useArenaStore((s) => s.crops);
   const seedlings = useArenaStore((s) => s.seedlings);
   const arenaRadius = useArenaStore((s) => s.arenaRadius);
