@@ -452,10 +452,11 @@ export class Room {
         else if (b.crops > 0 && b.crops >= a.crops * C.RAM_WIN_RATIO) [winner, loser] = [b, a];
         if (!winner || !loser) continue; // too close in size — harmless bump
 
-        // Bots never attack: if a bot would "win" the exchange, just ignore
-        // it rather than let a bot cost a real player their crops.
-        if (winner.isBot) continue;
-
+        // Bots can win or lose like anyone else here — they're just never
+        // the ones picking the fight. pickBotTarget() only ever aims a bot
+        // at the nearest crop, never at a player, so any collision
+        // involving a bot is an incidental crossing of paths while it was
+        // out collecting, not a deliberate attack.
         this.resolveRam(winner, loser, now);
       }
     }
