@@ -41,17 +41,27 @@ export function ArenaCanvas() {
   const boundaryLeft = boundaryScreen.x - boundaryDiameter / 2;
   const boundaryTop = boundaryScreen.y - boundaryDiameter / 2;
 
+  // Crops/seedlings never move, but `camera` gets a new value every
+  // animation frame from the smoothed self position — re-filtering
+  // potentially thousands of them 60x/sec just because the camera moved a
+  // fraction of a unit is wasted work. Quantizing to a coarse grid (well
+  // under CULL_MARGIN, so nothing pops in/out early) means this only
+  // recomputes when the camera has actually moved meaningfully.
+  const camQuantX = Math.round(camera.x / 40);
+  const camQuantY = Math.round(camera.y / 40);
   const visibleCrops = useMemo(
     () =>
       Object.values(crops).filter((c) => isInViewport(c.x, c.y, camera, width, height, CULL_MARGIN)),
-    [crops, camera, width, height]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [crops, camQuantX, camQuantY, camera.zoom, width, height]
   );
   const visibleSeedlings = useMemo(
     () =>
       Object.values(seedlings).filter((s) =>
         isInViewport(s.x, s.y, camera, width, height, CULL_MARGIN)
       ),
-    [seedlings, camera, width, height]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [seedlings, camQuantX, camQuantY, camera.zoom, width, height]
   );
   const visiblePlayers = useMemo(
     () =>

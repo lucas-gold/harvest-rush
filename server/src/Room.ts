@@ -2,6 +2,7 @@ import type { WebSocket } from "ws";
 import * as C from "./constants";
 import { randomId, randomPointInCircle, dist2, clampToCircle, sweptCircleOverlap } from "./util";
 import { randomBotAvatar, randomBotName } from "./bots";
+import { SpatialGrid } from "./SpatialGrid";
 import {
   AvatarCustomization,
   ServerMessage,
@@ -48,6 +49,10 @@ export class Room {
   readonly id: string;
   private players = new Map<string, InternalPlayer>();
   private crops = new Map<string, InternalCrop>();
+  // Cell size well above typical pickup/perception radii so a query only
+  // ever touches a small, constant-ish number of cells regardless of how
+  // many crops exist in the room.
+  private cropGrid = new SpatialGrid<InternalCrop>(120);
   private seedlings = new Map<string, InternalSeedling>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -80,7 +85,18 @@ export class Room {
       const { x, y } = randomPointInCircle(this.arenaRadius * 0.95);
       const crop: InternalCrop = { id: randomId("cr"), x, y };
       this.crops.set(crop.id, crop);
+      this.cropGrid.add(crop);
     }
+  }
+
+  private addCrop(crop: InternalCrop) {
+    this.crops.set(crop.id, crop);
+    this.cropGrid.add(crop);
+  }
+
+  private removeCrop(id: string) {
+    this.crops.delete(id);
+    this.cropGrid.remove(id);
   }
 
   realPlayerCount(): number {
@@ -191,7 +207,7 @@ export class Room {
     const r2 = this.arenaRadius * this.arenaRadius;
     for (const crop of this.crops.values()) {
       if (crop.x * crop.x + crop.y * crop.y > r2) {
-        this.crops.delete(crop.id);
+        this.removeCrop(crop.id);
         this.pendingCropRemove.push(crop.id);
       }
     }
@@ -245,7 +261,14 @@ export class Room {
   private updateBots(now: number) {
     for (const p of this.players.values()) {
       if (!p.isBot) continue;
-      if (now >= p.nextDecisionAt) {
+
+      // Retarget on arrival, not just on a timer — with crops this dense,
+      // "nearest crop" is often only a few units away, and waiting out the
+      // full decision interval after already reaching it just makes the
+      // bot sit there. The timer is now a backstop (e.g. got knocked off
+      // course) rather than the normal retarget trigger.
+      const arrived = Math.hypot(p.botTargetX - p.x, p.botTargetY - p.y) <= 4;
+      if (now >= p.nextDecisionAt || arrived) {
         p.nextDecisionAt = now + C.BOT_DECISION_INTERVAL_MS + Math.random() * 500;
         const target = this.pickBotTarget(p);
         p.botTargetX = target.x;
@@ -265,16 +288,23 @@ export class Room {
   }
 
   private pickBotTarget(p: InternalPlayer): { x: number; y: number } {
-    let nearest: InternalCrop | null = null;
-    let nearestD2 = C.BOT_PERCEPTION_RADIUS * C.BOT_PERCEPTION_RADIUS;
-    for (const crop of this.crops.values()) {
+    // Always beelining for the literal nearest crop reads as "circling in
+    // place" once the field is dense enough that the nearest crop is
+    // basically wherever the bot already is. Requiring real distance and
+    // picking randomly among what qualifies (not just the closest match)
+    // gives bots continuous, varied movement instead.
+    const candidates: InternalCrop[] = [];
+    for (const crop of this.cropGrid.near(p.x, p.y, C.BOT_PERCEPTION_RADIUS)) {
       const d2 = dist2(p.x, p.y, crop.x, crop.y);
-      if (d2 < nearestD2) {
-        nearestD2 = d2;
-        nearest = crop;
+      if (d2 <= C.BOT_PERCEPTION_RADIUS * C.BOT_PERCEPTION_RADIUS && d2 >= C.BOT_MIN_TRAVEL_DIST * C.BOT_MIN_TRAVEL_DIST) {
+        candidates.push(crop);
       }
     }
-    if (nearest) return { x: nearest.x, y: nearest.y };
+    if (candidates.length > 0) {
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      return { x: pick.x, y: pick.y };
+    }
+    // Nothing far enough away nearby — wander instead of stalling.
     return randomPointInCircle(this.arenaRadius * 0.9);
   }
 
@@ -372,9 +402,12 @@ export class Room {
   private handleCropPickups() {
     for (const p of this.players.values()) {
       const r = this.radiusFor(p.crops);
-      for (const crop of this.crops.values()) {
+      // Grid query already narrows this to nearby cells; still need the
+      // exact-distance check since cells are square and queries are cell-
+      // granular, not a precise circle.
+      for (const crop of this.cropGrid.near(p.x, p.y, r)) {
         if (dist2(p.x, p.y, crop.x, crop.y) <= r * r) {
-          this.crops.delete(crop.id);
+          this.removeCrop(crop.id);
           this.pendingCropRemove.push(crop.id);
           p.crops += 1;
         }
@@ -388,7 +421,7 @@ export class Room {
         this.seedlings.delete(s.id);
         this.pendingSeedlingRemove.push(s.id);
         const crop: InternalCrop = { id: randomId("cr"), x: s.x, y: s.y };
-        this.crops.set(crop.id, crop);
+        this.addCrop(crop);
         this.pendingCropSpawn.push(crop);
       }
     }
@@ -508,7 +541,7 @@ export class Room {
         x: x + Math.cos(angle) * dist,
         y: y + Math.sin(angle) * dist,
       };
-      this.crops.set(crop.id, crop);
+      this.addCrop(crop);
       this.pendingCropSpawn.push(crop);
     }
   }

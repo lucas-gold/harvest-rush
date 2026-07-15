@@ -14,10 +14,12 @@ export const ARENA_RADIUS_MAX_FRACTION = 1.0;
  * comfortable — see server/README.md for the capacity math. */
 export const MAX_PLAYERS_PER_ROOM = 40;
 
-/** Simulation + broadcast tick. 20Hz — tight enough that, combined with
- * client-side interpolation, movement doesn't read as choppy; still cheap
- * enough for a <$5/mo box at this player scale. */
-export const TICK_MS = 50;
+/** Simulation + broadcast tick. Client-side smoothing (useSmoothedPlayers)
+ * handles perceived choppiness independent of tick rate, so this doesn't
+ * need to be pushed as high as it would without that — dialed back from
+ * 50ms/20Hz to keep tick cost + outbound bandwidth down at higher crop
+ * counts on a <$5/mo box. */
+export const TICK_MS = 60;
 
 /** Movement. */
 export const BASE_SPEED = 220; // world units / sec at 0 crops
@@ -74,6 +76,10 @@ export const STARTING_CROPS = 0;
 export const MIN_LOBBY_POPULATION = 8;
 export const BOT_DECISION_INTERVAL_MS = 1500;
 export const BOT_PERCEPTION_RADIUS = 500;
+/** A bot's next target must be at least this far away — otherwise, with
+ * crops this dense, "nearest crop" is often only a few units off and bots
+ * just twitch in place instead of actually wandering. */
+export const BOT_MIN_TRAVEL_DIST = 60;
 
 /** Arena radius for a room's current total occupancy (real players + fill
  * bots), interpolating between the two fractions above across the
