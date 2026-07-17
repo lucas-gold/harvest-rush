@@ -33,6 +33,12 @@ export function ArenaScreen({ navigation }: Props) {
     navigation.replace("Entry");
   };
 
+  // A fresh connect, not resuming in place — dying is final; this is a new
+  // run (new socket, new player, server assigns whatever room has space).
+  const handlePlayAgain = () => {
+    connectToArena(name || "Farmer", customization);
+  };
+
   return (
     <View style={styles.root}>
       {status === "connected" && (
@@ -64,7 +70,7 @@ export function ArenaScreen({ navigation }: Props) {
         </View>
       )}
 
-      <PopOverlay onPlayAgain={() => {}} onExit={handleExit} />
+      <PopOverlay onPlayAgain={handlePlayAgain} onExit={handleExit} />
     </View>
   );
 }

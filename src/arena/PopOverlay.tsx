@@ -50,7 +50,7 @@ export function PopOverlay({ onPlayAgain, onExit }: Props) {
             </PixelText>
           </View>
           <Pressable style={styles.button} onPress={() => dismiss(onPlayAgain)}>
-            <PixelText style={styles.buttonText}>Keep Playing</PixelText>
+            <PixelText style={styles.buttonText}>Play Again</PixelText>
           </Pressable>
           <Pressable style={[styles.button, styles.buttonSecondary]} onPress={() => dismiss(onExit)}>
             <PixelText style={styles.buttonText}>Exit</PixelText>

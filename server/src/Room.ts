@@ -455,6 +455,10 @@ export class Room {
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i];
         const b = list[j];
+        // `list` is a snapshot from the start of this tick — if either was
+        // eliminated by an earlier pair's resolution this same tick, it's
+        // still sitting in `list` but no longer actually in the room.
+        if (!this.players.has(a.id) || !this.players.has(b.id)) continue;
         if (now < a.invulnUntil || now < b.invulnUntil) continue;
 
         const ra = this.radiusFor(a.crops);
@@ -500,7 +504,6 @@ export class Room {
     const remaining = loser.crops - stolen;
 
     winner.invulnUntil = now + C.COLLISION_INVULN_MS;
-    loser.invulnUntil = now + C.COLLISION_INVULN_MS;
 
     // Knock the loser back so the scattered pile isn't just sitting under
     // them for an instant, free re-pickup.
@@ -519,14 +522,17 @@ export class Room {
     this.scatterCrops(loser.x, loser.y, stolen);
 
     if (remaining <= C.POP_THRESHOLD_CROPS) {
+      // Dying is final, not a stumble — the loser is eliminated outright
+      // (same as leave(), which also broadcasts playerLeft, resizes the
+      // arena, and — for a bot — immediately spawns its replacement via
+      // rebalanceBots()) rather than respawned in place to keep playing.
+      // The client shows a game-over overlay on "popped" and only gets
+      // back in by reconnecting fresh (see connectToArena on Play Again).
       this.scatterCrops(loser.x, loser.y, remaining);
-      loser.crops = C.STARTING_CROPS;
-      const respawn = randomPointInCircle(this.arenaRadius * 0.6);
-      loser.x = respawn.x;
-      loser.y = respawn.y;
-      loser.invulnUntil = now + C.COLLISION_INVULN_MS * 2;
       if (!loser.isBot) this.send(loser, { t: "popped", byName: winner.name });
+      this.leave(loser.id);
     } else {
+      loser.invulnUntil = now + C.COLLISION_INVULN_MS;
       loser.crops = remaining;
     }
   }

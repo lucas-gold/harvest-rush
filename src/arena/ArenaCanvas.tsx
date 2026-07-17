@@ -23,7 +23,9 @@ export function ArenaCanvas() {
   const selfId = useArenaStore((s) => s.selfId);
   const players = useSmoothedPlayers();
   const crops = useArenaStore((s) => s.crops);
+  const cropsVersion = useArenaStore((s) => s.cropsVersion);
   const seedlings = useArenaStore((s) => s.seedlings);
+  const seedlingsVersion = useArenaStore((s) => s.seedlingsVersion);
   const arenaRadius = useArenaStore((s) => s.arenaRadius);
 
   const lastDirRef = useRef<Record<string, "down" | "up" | "left" | "right">>({});
@@ -52,8 +54,10 @@ export function ArenaCanvas() {
   const visibleCrops = useMemo(
     () =>
       Object.values(crops).filter((c) => isInViewport(c.x, c.y, camera, width, height, CULL_MARGIN)),
+    // crops is mutated in place (see arenaStore) so its reference never
+    // changes — cropsVersion is the real "did this actually change" signal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [crops, camQuantX, camQuantY, camera.zoom, width, height]
+    [cropsVersion, camQuantX, camQuantY, camera.zoom, width, height]
   );
   const visibleSeedlings = useMemo(
     () =>
@@ -61,7 +65,7 @@ export function ArenaCanvas() {
         isInViewport(s.x, s.y, camera, width, height, CULL_MARGIN)
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [seedlings, camQuantX, camQuantY, camera.zoom, width, height]
+    [seedlingsVersion, camQuantX, camQuantY, camera.zoom, width, height]
   );
   const visiblePlayers = useMemo(
     () =>

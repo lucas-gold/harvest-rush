@@ -13,8 +13,19 @@ interface ArenaState {
   selfId: string | null;
   arenaRadius: number;
   players: Record<string, PlayerSnapshot>;
+  // Mutated in place, not spread-copied — with coverage-based spawning
+  // there can be ~1-2k crops in a room, and a full {...crops} clone on
+  // every single pickup/spawn tick (which happens continuously while
+  // anyone is actively collecting in a field this dense) was the actual
+  // source of "laggy, especially once I collect a crop": real, repeated
+  // large-object cloning and the GC pressure that comes with it, not
+  // rendering cost. cropsVersion/seedlingsVersion are the reactive
+  // trigger instead — bump on every mutation, read the (mutated) data
+  // itself via getState() or a plain selector at render time.
   crops: Record<string, CropSnapshot>;
+  cropsVersion: number;
   seedlings: Record<string, SeedlingSnapshot>;
+  seedlingsVersion: number;
   leaderboard: LeaderboardEntry[];
   playerCount: number;
   /** Bumped on every pop so the overlay can key off it even if byName repeats. */
@@ -50,7 +61,9 @@ const initial = {
   arenaRadius: 1500,
   players: {} as Record<string, PlayerSnapshot>,
   crops: {} as Record<string, CropSnapshot>,
+  cropsVersion: 0,
   seedlings: {} as Record<string, SeedlingSnapshot>,
+  seedlingsVersion: 0,
   leaderboard: [] as LeaderboardEntry[],
   playerCount: 0,
   lastPop: null as { byName: string | null; finalCrops: number; at: number } | null,
@@ -58,18 +71,26 @@ const initial = {
 
 export const useArenaStore = create<ArenaState>()((set, get) => ({
   ...initial,
+  // Fresh objects, not the module-level `initial`'s nested ones — those
+  // get mutated in place from here on (see the comment on `crops` above),
+  // and sharing them would mean the "initial" template itself could drift.
+  players: {},
+  crops: {},
+  seedlings: {},
 
   _setStatus: (status) => set({ status }),
 
   _setWelcome: ({ playerId, arenaRadius, players, crops, seedlings }) =>
-    set({
+    set((s) => ({
       selfId: playerId,
       arenaRadius,
       players: Object.fromEntries(players.map((p) => [p.id, p])),
       crops: Object.fromEntries(crops.map((c) => [c.id, c])),
-      seedlings: Object.fromEntries(seedlings.map((s) => [s.id, s])),
+      cropsVersion: s.cropsVersion + 1,
+      seedlings: Object.fromEntries(seedlings.map((sd) => [sd.id, sd])),
+      seedlingsVersion: s.seedlingsVersion + 1,
       status: "connected",
-    }),
+    })),
 
   _applyState: (players, leaderboard, playerCount, arenaRadius) =>
     set({
@@ -80,25 +101,27 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
     }),
 
   _addCrops: (crops) =>
-    set((s) => ({ crops: { ...s.crops, ...Object.fromEntries(crops.map((c) => [c.id, c])) } })),
+    set((s) => {
+      for (const c of crops) s.crops[c.id] = c;
+      return { crops: s.crops, cropsVersion: s.cropsVersion + 1 };
+    }),
 
   _removeCrops: (ids) =>
     set((s) => {
-      const crops = { ...s.crops };
-      for (const id of ids) delete crops[id];
-      return { crops };
+      for (const id of ids) delete s.crops[id];
+      return { crops: s.crops, cropsVersion: s.cropsVersion + 1 };
     }),
 
   _addSeedlings: (seedlings) =>
-    set((s) => ({
-      seedlings: { ...s.seedlings, ...Object.fromEntries(seedlings.map((sd) => [sd.id, sd])) },
-    })),
+    set((s) => {
+      for (const sd of seedlings) s.seedlings[sd.id] = sd;
+      return { seedlings: s.seedlings, seedlingsVersion: s.seedlingsVersion + 1 };
+    }),
 
   _removeSeedlings: (ids) =>
     set((s) => {
-      const seedlings = { ...s.seedlings };
-      for (const id of ids) delete seedlings[id];
-      return { seedlings };
+      for (const id of ids) delete s.seedlings[id];
+      return { seedlings: s.seedlings, seedlingsVersion: s.seedlingsVersion + 1 };
     }),
 
   _removePlayer: (id) =>
@@ -118,5 +141,5 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
 
   _clearPop: () => set({ lastPop: null }),
 
-  _reset: () => set({ ...initial }),
+  _reset: () => set({ ...initial, crops: {}, seedlings: {}, players: {} }),
 }));
