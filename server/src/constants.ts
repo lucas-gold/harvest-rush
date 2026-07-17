@@ -22,7 +22,7 @@ export const MAX_PLAYERS_PER_ROOM = 40;
 export const TICK_MS = 60;
 
 /** Movement. */
-export const BASE_SPEED = 220; // world units / sec at 0 crops
+export const BASE_SPEED = 176; // world units / sec at 0 crops (~20% down from 220)
 export const MAX_SPEED_PENALTY = 0.4; // biggest players top out 40% slower
 export const SPEED_PENALTY_PER_CROP = 300; // crops to reach the full penalty
 export const BOOST_SPEED_MULTIPLIER = 1.8;

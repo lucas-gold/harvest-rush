@@ -4,6 +4,7 @@ import { useArenaStore } from "../multiplayer/arenaStore";
 import { AvatarView } from "../avatar/AvatarView";
 import { PixelCanvas } from "../pixelart/PixelCanvas";
 import { buildGroundCropSprite, buildSeedlingSprite } from "../pixelart/cropSprites";
+import { PALETTE } from "../theme/palette";
 import { PixelText } from "../theme/PixelText";
 import { BackpackStack } from "./BackpackStack";
 import { FarmField } from "./FarmField";
@@ -14,6 +15,20 @@ import { useSmoothedPlayers } from "./useSmoothedPlayers";
 const CROP_WORLD_SIZE = 20;
 const SEEDLING_WORLD_SIZE = 14;
 const CULL_MARGIN = 80;
+
+// Only crops/seedlings within this world-space distance of the camera get
+// the full pixel-art SVG sprite (dozens of <Rect> elements each); farther
+// ones (still on screen when zoomed out, just not the focus) render as a
+// plain colored square instead. This caps the expensive-sprite count to
+// roughly a fixed number regardless of zoom or total world population —
+// a size/zoom-based threshold alone doesn't: a small/fresh player sits at
+// the *highest* zoom (see computeZoom), where crops are large enough to
+// clear almost any reasonable size threshold, so a size check alone still
+// let a full-detail viewport (measured: ~10,700 SVG shape elements at
+// once) through right when a player first connects — exactly the moment
+// that showed up as a ~370-430ms main-thread stall.
+const CROP_DETAIL_RADIUS = 180;
+const SEEDLING_DETAIL_RADIUS = 150;
 
 const groundCropMatrix = buildGroundCropSprite();
 const seedlingMatrix = buildSeedlingSprite();
@@ -112,11 +127,19 @@ export function ArenaCanvas() {
       {visibleSeedlings.map((s) => {
         const pos = worldToScreen(s.x, s.y, camera, width, height);
         const size = Math.max(6, SEEDLING_WORLD_SIZE * camera.zoom);
+        const style = {
+          position: "absolute" as const,
+          left: pos.x - size / 2,
+          top: pos.y - size / 2,
+          width: size,
+          height: size,
+        };
+        const near = Math.hypot(s.x - camera.x, s.y - camera.y) <= SEEDLING_DETAIL_RADIUS;
+        if (!near) {
+          return <View key={s.id} style={[style, styles.seedlingDot, { borderRadius: size / 2 }]} />;
+        }
         return (
-          <View
-            key={s.id}
-            style={{ position: "absolute", left: pos.x - size / 2, top: pos.y - size / 2, width: size, height: size }}
-          >
+          <View key={s.id} style={style}>
             <PixelCanvas matrix={seedlingMatrix} size={size} />
           </View>
         );
@@ -125,11 +148,19 @@ export function ArenaCanvas() {
       {visibleCrops.map((c) => {
         const pos = worldToScreen(c.x, c.y, camera, width, height);
         const size = Math.max(8, CROP_WORLD_SIZE * camera.zoom);
+        const style = {
+          position: "absolute" as const,
+          left: pos.x - size / 2,
+          top: pos.y - size / 2,
+          width: size,
+          height: size,
+        };
+        const near = Math.hypot(c.x - camera.x, c.y - camera.y) <= CROP_DETAIL_RADIUS;
+        if (!near) {
+          return <View key={c.id} style={[style, styles.cropDot, { borderRadius: size / 4 }]} />;
+        }
         return (
-          <View
-            key={c.id}
-            style={{ position: "absolute", left: pos.x - size / 2, top: pos.y - size / 2, width: size, height: size }}
-          >
+          <View key={c.id} style={style}>
             <PixelCanvas matrix={groundCropMatrix} size={size} />
           </View>
         );
@@ -185,6 +216,14 @@ export function ArenaCanvas() {
 }
 
 const styles = StyleSheet.create({
+  cropDot: {
+    backgroundColor: PALETTE.wheatGold,
+    borderWidth: 1,
+    borderColor: PALETTE.wheatGoldDark,
+  },
+  seedlingDot: {
+    backgroundColor: PALETTE.sproutGreen,
+  },
   boundaryFill: {
     position: "absolute",
     backgroundColor: "#2f5d33",

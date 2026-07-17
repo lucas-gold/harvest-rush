@@ -13,8 +13,11 @@ export function radiusForCrops(crops: number): number {
   return PLAYER_BASE_RADIUS + Math.sqrt(Math.max(0, crops)) * PLAYER_RADIUS_PER_SQRT_CROP;
 }
 
-const WORLD_UNITS_PER_BUNDLE = 4;
-const MAX_BUNDLES = 12;
+const WORLD_UNITS_PER_BUNDLE = 5;
+// Each bundle is its own sprite instance; with up to ~40 players visible
+// and rendering happening dozens of times/sec, this is a real render-cost
+// lever, not just a visual one.
+const MAX_BUNDLES = 8;
 
 /** How many wheat bundles to show in a player's backpack pile — scaled
  * off the same growth curve as the real hitbox, so a taller pile is an
