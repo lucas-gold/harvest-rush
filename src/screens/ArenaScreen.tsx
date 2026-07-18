@@ -9,6 +9,7 @@ import { Leaderboard } from "../arena/Leaderboard";
 import { HUD } from "../arena/HUD";
 import { InputController } from "../arena/InputController";
 import { PopOverlay } from "../arena/PopOverlay";
+import { RamHitToast } from "../arena/RamHitToast";
 import { usePlayerStore } from "../state/playerStore";
 import { useArenaStore } from "../multiplayer/arenaStore";
 import { connectToArena, disconnectFromArena } from "../multiplayer/connection";
@@ -45,6 +46,7 @@ export function ArenaScreen({ navigation }: Props) {
         <>
           <ArenaCanvas />
           <InputController />
+          <RamHitToast />
         </>
       )}
 

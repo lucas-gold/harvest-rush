@@ -75,4 +75,5 @@ export type ServerMessage =
   | { t: "seedlingSpawn"; seedlings: SeedlingSnapshot[] }
   | { t: "seedlingRemove"; ids: string[] }
   | { t: "popped"; byName: string | null }
+  | { t: "ramHit"; targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }
   | { t: "playerLeft"; id: string };

@@ -30,6 +30,9 @@ interface ArenaState {
   playerCount: number;
   /** Bumped on every pop so the overlay can key off it even if byName repeats. */
   lastPop: { byName: string | null; finalCrops: number; at: number } | null;
+  /** Feedback for the winner of a ram — otherwise a successful hit was just
+   * the other player quietly vanishing, easy to read as "nothing happened." */
+  lastRamHit: { targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean; at: number } | null;
 
   _setStatus: (status: ConnectionStatus) => void;
   _setWelcome: (payload: {
@@ -52,6 +55,7 @@ interface ArenaState {
   _removePlayer: (id: string) => void;
   _setPopped: (byName: string | null) => void;
   _clearPop: () => void;
+  _setRamHit: (hit: { targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }) => void;
   _reset: () => void;
 }
 
@@ -67,6 +71,13 @@ const initial = {
   leaderboard: [] as LeaderboardEntry[],
   playerCount: 0,
   lastPop: null as { byName: string | null; finalCrops: number; at: number } | null,
+  lastRamHit: null as {
+    targetName: string;
+    targetIsBot: boolean;
+    scattered: number;
+    eliminated: boolean;
+    at: number;
+  } | null,
 };
 
 export const useArenaStore = create<ArenaState>()((set, get) => ({
@@ -140,6 +151,8 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
   },
 
   _clearPop: () => set({ lastPop: null }),
+
+  _setRamHit: (hit) => set({ lastRamHit: { ...hit, at: Date.now() } }),
 
   _reset: () => set({ ...initial, crops: {}, seedlings: {}, players: {} }),
 }));

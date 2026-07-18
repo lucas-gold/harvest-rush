@@ -521,7 +521,21 @@ export class Room {
     // Scattered (not silently transferred) so bystanders can dive in too.
     this.scatterCrops(loser.x, loser.y, stolen);
 
-    if (remaining <= C.POP_THRESHOLD_CROPS) {
+    const eliminated = remaining <= C.POP_THRESHOLD_CROPS;
+    // The only feedback a successful ram gave the winner before was the
+    // other player quietly vanishing — easy to miss, and reads as "nothing
+    // happened" especially when the target's a bot. Tell them explicitly.
+    if (!winner.isBot) {
+      this.send(winner, {
+        t: "ramHit",
+        targetName: loser.name,
+        targetIsBot: loser.isBot,
+        scattered: stolen + (eliminated ? remaining : 0),
+        eliminated,
+      });
+    }
+
+    if (eliminated) {
       // Dying is final, not a stumble — the loser is eliminated outright
       // (same as leave(), which also broadcasts playerLeft, resizes the
       // arena, and — for a bot — immediately spawns its replacement via

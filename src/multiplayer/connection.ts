@@ -40,6 +40,14 @@ function handleMessage(msg: ServerMessage) {
     case "popped":
       store._setPopped(msg.byName);
       break;
+    case "ramHit":
+      store._setRamHit({
+        targetName: msg.targetName,
+        targetIsBot: msg.targetIsBot,
+        scattered: msg.scattered,
+        eliminated: msg.eliminated,
+      });
+      break;
   }
 }
 

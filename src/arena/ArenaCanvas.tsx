@@ -29,6 +29,13 @@ const CULL_MARGIN = 80;
 // that showed up as a ~370-430ms main-thread stall.
 const CROP_DETAIL_RADIUS = 180;
 const SEEDLING_DETAIL_RADIUS = 150;
+// Same idea, applied to other players: a full player is an avatar SVG plus
+// a backpack base plus up to MAX_BUNDLES more SVGs for a big one — up to
+// ~10 sprite instances each, and with up to 40 players that's the single
+// largest remaining render cost. Distant players (you're not about to
+// interact with them anyway) collapse to one plain colored dot. Self
+// always renders in full detail regardless of distance (there's only one).
+const PLAYER_DETAIL_RADIUS = 300;
 
 const groundCropMatrix = buildGroundCropSprite();
 const seedlingMatrix = buildSeedlingSprite();
@@ -136,7 +143,12 @@ export function ArenaCanvas() {
         };
         const near = Math.hypot(s.x - camera.x, s.y - camera.y) <= SEEDLING_DETAIL_RADIUS;
         if (!near) {
-          return <View key={s.id} style={[style, styles.seedlingDot, { borderRadius: size / 2 }]} />;
+          const dot = size * 0.55;
+          return (
+            <View key={s.id} style={[style, { alignItems: "center", justifyContent: "center" }]}>
+              <View style={[styles.seedlingDot, { width: dot, height: dot, borderRadius: dot / 2 }]} />
+            </View>
+          );
         }
         return (
           <View key={s.id} style={style}>
@@ -157,7 +169,12 @@ export function ArenaCanvas() {
         };
         const near = Math.hypot(c.x - camera.x, c.y - camera.y) <= CROP_DETAIL_RADIUS;
         if (!near) {
-          return <View key={c.id} style={[style, styles.cropDot, { borderRadius: size / 4 }]} />;
+          const dot = size * 0.6;
+          return (
+            <View key={c.id} style={[style, { alignItems: "center", justifyContent: "center" }]}>
+              <View style={[styles.cropDot, { width: dot, height: dot, borderRadius: dot / 2 }]} />
+            </View>
+          );
         }
         return (
           <View key={c.id} style={style}>
@@ -173,6 +190,8 @@ export function ArenaCanvas() {
         const dir = directionFromVector(p.dirX, p.dirY, lastDirRef.current[p.id] ?? "down");
         lastDirRef.current[p.id] = dir;
         const invuln = p.invulnUntil > Date.now();
+        const isSelf = p.id === selfId;
+        const near = isSelf || Math.hypot(p.x - camera.x, p.y - camera.y) <= PLAYER_DETAIL_RADIUS;
 
         const labelWidth = 110;
         return (
@@ -187,20 +206,42 @@ export function ArenaCanvas() {
             }}
           >
             <View style={{ width: r * 2, height: r * 2, alignItems: "center", justifyContent: "center" }}>
-              <BackpackStack crops={p.crops} size={r * 2.4} />
-              <View
-                style={[
-                  styles.avatarRing,
-                  {
-                    width: r * 2,
-                    height: r * 2,
-                    borderRadius: r,
-                    borderColor: invuln ? "#e0433a" : "transparent",
-                  },
-                ]}
-              >
-                <AvatarView customization={p.avatar} size={r * 1.8} direction={dir} walkFrame={moving ? walkFrame : 0} />
-              </View>
+              {near ? (
+                <>
+                  <BackpackStack crops={p.crops} size={r * 2.4} />
+                  <View
+                    style={[
+                      styles.avatarRing,
+                      {
+                        width: r * 2,
+                        height: r * 2,
+                        borderRadius: r,
+                        borderColor: invuln ? "#e0433a" : "transparent",
+                      },
+                    ]}
+                  >
+                    <AvatarView
+                      customization={p.avatar}
+                      size={r * 1.8}
+                      direction={dir}
+                      walkFrame={moving ? walkFrame : 0}
+                    />
+                  </View>
+                </>
+              ) : (
+                <View
+                  style={[
+                    styles.playerDot,
+                    {
+                      width: r * 1.6,
+                      height: r * 1.6,
+                      borderRadius: r * 0.8,
+                      backgroundColor: PALETTE[p.avatar.shirtColor],
+                      borderColor: invuln ? "#e0433a" : PALETTE.outline,
+                    },
+                  ]}
+                />
+              )}
             </View>
             <View style={styles.nameRow}>
               <PixelText weight="semibold" style={styles.nameLabel} numberOfLines={1}>
@@ -216,13 +257,20 @@ export function ArenaCanvas() {
 }
 
 const styles = StyleSheet.create({
+  // Distant crops/seedlings simplify to these — small, round, and
+  // slightly translucent so they read as "not quite in focus yet" rather
+  // than a bright, out-of-place shape.
   cropDot: {
     backgroundColor: PALETTE.wheatGold,
-    borderWidth: 1,
-    borderColor: PALETTE.wheatGoldDark,
+    opacity: 0.8,
   },
   seedlingDot: {
     backgroundColor: PALETTE.sproutGreen,
+    opacity: 0.75,
+  },
+  playerDot: {
+    opacity: 0.85,
+    borderWidth: 2,
   },
   boundaryFill: {
     position: "absolute",
