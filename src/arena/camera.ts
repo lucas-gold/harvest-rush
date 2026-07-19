@@ -1,5 +1,5 @@
-export const MIN_ZOOM = 0.45;
-export const MAX_ZOOM = 1.15;
+export const MIN_ZOOM = 0.62;
+export const MAX_ZOOM = 1.4;
 const ZOOM_CROP_SCALE = 45;
 
 /** Zoom out as the local player's stack grows — agar.io-style "you can see

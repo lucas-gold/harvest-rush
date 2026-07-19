@@ -5,19 +5,19 @@ import { ControlScheme, useSettingsStore } from "../../state/settingsStore";
 
 const OPTIONS: { value: ControlScheme; label: string; description: string }[] = [
   {
-    value: "dragBoostButton",
-    label: "Drag + Boost Button",
-    description: "Drag anywhere to steer, tap the button to boost.",
+    value: "dragFireButton",
+    label: "Drag + Fire Button",
+    description: "Drag anywhere to steer, tap the button to shoot.",
   },
   {
-    value: "dragDistanceBoost",
-    label: "Drag Far to Boost",
-    description: "Drag to steer — drag far enough and you auto-boost.",
+    value: "dragDistanceFire",
+    label: "Drag Far to Fire",
+    description: "Drag to steer — drag far enough and you auto-fire.",
   },
   {
-    value: "dpadBoostButton",
-    label: "D-Pad + Boost Button",
-    description: "Classic 4-direction pad, plus a boost button.",
+    value: "dpadFireButton",
+    label: "D-Pad + Fire Button",
+    description: "Classic 4-direction pad, plus a fire button.",
   },
 ];
 

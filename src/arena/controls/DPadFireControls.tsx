@@ -1,19 +1,19 @@
 import React, { useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { sendInput } from "../../multiplayer/connection";
-import { BoostButton } from "./BoostButton";
+import { FireButton } from "./FireButton";
 
 type Dir = "up" | "down" | "left" | "right";
 const BTN = 56;
 
-/** Scheme 3: a classic 4-direction D-pad plus a boost button, both docked
+/** Scheme 3: a classic 4-direction D-pad plus a fire button, both docked
  * along the bottom of the screen. Two adjacent directions can be held at
  * once for diagonal movement. */
-export function DPadBoostControls() {
+export function DPadFireControls() {
   const held = useRef<Record<Dir, boolean>>({ up: false, down: false, left: false, right: false });
   const [, forceRender] = useState(0);
-  const boostingRef = useRef(false);
-  const [boosting, setBoosting] = useState(false);
+  const firingRef = useRef(false);
+  const [firing, setFiringState] = useState(false);
 
   const sendDir = () => {
     const h = held.current;
@@ -24,7 +24,7 @@ export function DPadBoostControls() {
       x /= mag;
       y /= mag;
     }
-    sendInput(x, y, boostingRef.current);
+    sendInput(x, y, firingRef.current);
   };
 
   const setDir = (dir: Dir, value: boolean) => {
@@ -33,9 +33,9 @@ export function DPadBoostControls() {
     sendDir();
   };
 
-  const setBoost = (value: boolean) => {
-    boostingRef.current = value;
-    setBoosting(value);
+  const setFiring = (value: boolean) => {
+    firingRef.current = value;
+    setFiringState(value);
     sendDir();
   };
 
@@ -57,7 +57,7 @@ export function DPadBoostControls() {
         {dpadButton("right", "▶", { top: BTN, left: BTN * 2 })}
         {dpadButton("down", "▼", { top: BTN * 2, left: BTN })}
       </View>
-      <BoostButton active={boosting} onPressIn={() => setBoost(true)} onPressOut={() => setBoost(false)} />
+      <FireButton active={firing} onPressIn={() => setFiring(true)} onPressOut={() => setFiring(false)} />
     </>
   );
 }

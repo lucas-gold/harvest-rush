@@ -9,14 +9,14 @@ interface Props {
   style?: StyleProp<ViewStyle>;
 }
 
-export function BoostButton({ active, onPressIn, onPressOut, style }: Props) {
+export function FireButton({ active, onPressIn, onPressOut, style }: Props) {
   return (
     <Pressable
       onPressIn={onPressIn}
       onPressOut={onPressOut}
       style={[styles.button, active && styles.buttonActive, style]}
     >
-      <PixelText style={styles.label}>BOOST</PixelText>
+      <PixelText style={styles.label}>FIRE</PixelText>
     </Pressable>
   );
 }

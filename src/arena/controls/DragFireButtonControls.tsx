@@ -1,20 +1,20 @@
 import React, { useRef, useState } from "react";
 import { View, StyleSheet, PanResponder, useWindowDimensions } from "react-native";
 import { sendInput } from "../../multiplayer/connection";
-import { BoostButton } from "./BoostButton";
+import { FireButton } from "./FireButton";
 import { directionFromDelta } from "./shared";
 
 /** Scheme 1 (default): drag anywhere to steer relative to screen center
- * (where the avatar always sits, camera-locked); a dedicated button boosts. */
-export function DragBoostButtonControls() {
+ * (where the avatar always sits, camera-locked); a dedicated button fires. */
+export function DragFireButtonControls() {
   const { width, height } = useWindowDimensions();
   const dirRef = useRef({ x: 0, y: 0 });
-  const boostingRef = useRef(false);
-  const [boosting, setBoostingState] = useState(false);
+  const firingRef = useRef(false);
+  const [firing, setFiringState] = useState(false);
 
   const applyPointer = (px: number, py: number) => {
     dirRef.current = directionFromDelta(px - width / 2, py - height / 2);
-    sendInput(dirRef.current.x, dirRef.current.y, boostingRef.current);
+    sendInput(dirRef.current.x, dirRef.current.y, firingRef.current);
   };
 
   const panResponder = useRef(
@@ -25,16 +25,16 @@ export function DragBoostButtonControls() {
     })
   ).current;
 
-  const setBoost = (value: boolean) => {
-    boostingRef.current = value;
-    setBoostingState(value);
+  const setFiring = (value: boolean) => {
+    firingRef.current = value;
+    setFiringState(value);
     sendInput(dirRef.current.x, dirRef.current.y, value);
   };
 
   return (
     <>
       <View style={[StyleSheet.absoluteFill, { pointerEvents: "box-only" }]} {...panResponder.panHandlers} />
-      <BoostButton active={boosting} onPressIn={() => setBoost(true)} onPressOut={() => setBoost(false)} />
+      <FireButton active={firing} onPressIn={() => setFiring(true)} onPressOut={() => setFiring(false)} />
     </>
   );
 }

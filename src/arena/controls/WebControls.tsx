@@ -1,15 +1,15 @@
 import React, { useState } from "react";
-import { BoostButton } from "./BoostButton";
+import { FireButton } from "./FireButton";
 import { useWebControls } from "./useWebControls";
 
 export function WebControls() {
-  const { setButtonBoost } = useWebControls();
-  const [boosting, setBoosting] = useState(false);
+  const { setButtonFiring } = useWebControls();
+  const [firing, setFiringState] = useState(false);
 
-  const setBoost = (v: boolean) => {
-    setBoosting(v);
-    setButtonBoost(v);
+  const setFiring = (v: boolean) => {
+    setFiringState(v);
+    setButtonFiring(v);
   };
 
-  return <BoostButton active={boosting} onPressIn={() => setBoost(true)} onPressOut={() => setBoost(false)} />;
+  return <FireButton active={firing} onPressIn={() => setFiring(true)} onPressOut={() => setFiring(false)} />;
 }

@@ -56,7 +56,7 @@ wss.on("connection", (ws: WebSocket) => {
     }
 
     if (msg.t === "input" && state.room && state.playerId) {
-      state.room.handleInput(state.playerId, msg.dirX, msg.dirY, msg.boost);
+      state.room.handleInput(state.playerId, msg.dirX, msg.dirY, msg.firing);
     }
   });
 

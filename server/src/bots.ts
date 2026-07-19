@@ -17,7 +17,7 @@ const BOT_NAMES = [
   "Maize",
 ];
 
-const SKINS: AvatarCustomization["skinTone"][] = ["skin1", "skin2", "skin3"];
+const SKINS: AvatarCustomization["skinTone"][] = ["skin1", "skin2", "skin3", "skin4"];
 const HAIRS: AvatarCustomization["hairColor"][] = [
   "hairBrown",
   "hairBlack",

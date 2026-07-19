@@ -5,7 +5,7 @@ import { blank, fillRect, setCells, GRID } from "./builder";
 export type Direction = "down" | "up" | "left" | "right";
 
 export interface AvatarCustomization {
-  skinTone: Extract<PaletteKey, "skin1" | "skin2" | "skin3">;
+  skinTone: Extract<PaletteKey, "skin1" | "skin2" | "skin3" | "skin4">;
   hairColor: Extract<PaletteKey, "hairBrown" | "hairBlack" | "hairBlonde" | "hairRed">;
   shirtColor: Extract<PaletteKey, "shirtRed" | "shirtBlue" | "shirtGreen" | "shirtYellow">;
   hat: boolean;
@@ -18,7 +18,7 @@ export const DEFAULT_CUSTOMIZATION: AvatarCustomization = {
   hat: false,
 };
 
-export const SKIN_OPTIONS: AvatarCustomization["skinTone"][] = ["skin1", "skin2", "skin3"];
+export const SKIN_OPTIONS: AvatarCustomization["skinTone"][] = ["skin1", "skin2", "skin3", "skin4"];
 export const HAIR_OPTIONS: AvatarCustomization["hairColor"][] = [
   "hairBrown",
   "hairBlack",

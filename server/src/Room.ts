@@ -9,6 +9,7 @@ import {
   PlayerSnapshot,
   CropSnapshot,
   SeedlingSnapshot,
+  SeedProjectileSnapshot,
   LeaderboardEntry,
 } from "./protocol";
 
@@ -22,14 +23,20 @@ interface InternalPlayer {
   y: number;
   dirX: number;
   dirY: number;
-  boostRequested: boolean;
+  // Last nonzero direction — used to aim a shot when the player currently
+  // isn't moving (dirX/dirY zero out at rest, but you should still be able
+  // to fire the way you were last facing).
+  facingX: number;
+  facingY: number;
+  firing: boolean;
+  lastFireAt: number;
   crops: number;
-  lastBoostCostAt: number;
   invulnUntil: number;
   // bot-only wander state
   nextDecisionAt: number;
   botTargetX: number;
   botTargetY: number;
+  nextBotFireCheckAt: number;
 }
 
 interface InternalCrop {
@@ -45,6 +52,16 @@ interface InternalSeedling {
   plantedAt: number;
 }
 
+interface InternalSeedProjectile {
+  id: string;
+  x: number;
+  y: number;
+  dirX: number;
+  dirY: number;
+  ownerId: string;
+  traveled: number;
+}
+
 export class Room {
   readonly id: string;
   private players = new Map<string, InternalPlayer>();
@@ -54,6 +71,7 @@ export class Room {
   // many crops exist in the room.
   private cropGrid = new SpatialGrid<InternalCrop>(120);
   private seedlings = new Map<string, InternalSeedling>();
+  private seeds = new Map<string, InternalSeedProjectile>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
   // Recomputed on join/leave from realPlayerCount() alone — bots always
@@ -138,13 +156,16 @@ export class Room {
       y: 0,
       dirX: 0,
       dirY: 0,
-      boostRequested: false,
+      facingX: 0,
+      facingY: 1, // face "down" by default, matching the client's fallback
+      firing: false,
+      lastFireAt: 0,
       crops: C.STARTING_CROPS,
-      lastBoostCostAt: 0,
-      invulnUntil: now + C.COLLISION_INVULN_MS,
+      invulnUntil: now + C.HIT_INVULN_MS,
       nextDecisionAt: 0,
       botTargetX: 0,
       botTargetY: 0,
+      nextBotFireCheckAt: 0,
     };
     this.players.set(id, player);
     this.recomputeArenaRadius();
@@ -176,7 +197,7 @@ export class Room {
     this.rebalanceBots();
   }
 
-  handleInput(id: string, dirX: number, dirY: number, boost: boolean) {
+  handleInput(id: string, dirX: number, dirY: number, firing: boolean) {
     const p = this.players.get(id);
     if (!p || p.isBot) return;
     const mag = Math.hypot(dirX, dirY);
@@ -186,7 +207,11 @@ export class Room {
     }
     p.dirX = mag > 0.001 ? dirX : 0;
     p.dirY = mag > 0.001 ? dirY : 0;
-    p.boostRequested = boost;
+    if (p.dirX !== 0 || p.dirY !== 0) {
+      p.facingX = p.dirX;
+      p.facingY = p.dirY;
+    }
+    p.firing = firing;
   }
 
   // ---- arena sizing ----
@@ -247,13 +272,16 @@ export class Room {
       y: spawn.y,
       dirX: 0,
       dirY: 0,
-      boostRequested: false,
+      facingX: 0,
+      facingY: 1,
+      firing: false,
+      lastFireAt: 0,
       crops: Math.floor(Math.random() * 4),
-      lastBoostCostAt: 0,
-      invulnUntil: Date.now() + C.COLLISION_INVULN_MS,
+      invulnUntil: Date.now() + C.HIT_INVULN_MS,
       nextDecisionAt: 0,
       botTargetX: spawn.x,
       botTargetY: spawn.y,
+      nextBotFireCheckAt: Date.now() + Math.random() * C.BOT_FIRE_CHECK_INTERVAL_MS,
     };
     this.players.set(id, bot);
   }
@@ -280,6 +308,8 @@ export class Room {
       if (mag > 4) {
         p.dirX = dx / mag;
         p.dirY = dy / mag;
+        p.facingX = p.dirX;
+        p.facingY = p.dirY;
       } else {
         p.dirX = 0;
         p.dirY = 0;
@@ -308,6 +338,35 @@ export class Room {
     return randomPointInCircle(this.arenaRadius * 0.9);
   }
 
+  /** Bots take the occasional pot-shot — sparse, and roughly toward the
+   * arena center rather than at anyone in particular (pickBotTarget never
+   * targets a player, so this is the only source of bot "aggression",
+   * and it's deliberately imprecise). */
+  private updateBotFiring(now: number) {
+    for (const p of this.players.values()) {
+      if (!p.isBot) continue;
+      if (now < p.nextBotFireCheckAt) continue;
+      p.nextBotFireCheckAt = now + C.BOT_FIRE_CHECK_INTERVAL_MS + Math.random() * 1000;
+      if (Math.random() > C.BOT_FIRE_CHANCE) continue;
+      const dir = this.centerBiasedDirection(p.x, p.y);
+      this.tryFire(p, now, dir.x, dir.y);
+    }
+  }
+
+  private centerBiasedDirection(x: number, y: number): { x: number; y: number } {
+    const angle = Math.random() * Math.PI * 2;
+    const randX = Math.cos(angle);
+    const randY = Math.sin(angle);
+    const toCenterMag = Math.hypot(x, y) || 1;
+    const toCenterX = -x / toCenterMag;
+    const toCenterY = -y / toCenterMag;
+    const bias = C.BOT_FIRE_CENTER_BIAS;
+    const blendX = randX * (1 - bias) + toCenterX * bias;
+    const blendY = randY * (1 - bias) + toCenterY * bias;
+    const mag = Math.hypot(blendX, blendY) || 1;
+    return { x: blendX / mag, y: blendY / mag };
+  }
+
   // ---- snapshot / networking ----
 
   private toSnapshot = (p: InternalPlayer): PlayerSnapshot => ({
@@ -319,7 +378,6 @@ export class Room {
     dirX: p.dirX,
     dirY: p.dirY,
     crops: p.crops,
-    boosting: p.boostRequested && p.crops > 0,
     invulnUntil: p.invulnUntil,
     isBot: p.isBot,
   });
@@ -342,15 +400,13 @@ export class Room {
     const dt = C.TICK_MS / 1000;
 
     this.updateBots(now);
-
-    const preMove = new Map<string, { x: number; y: number }>();
-    for (const p of this.players.values()) preMove.set(p.id, { x: p.x, y: p.y });
-
-    this.updateMovementAndBoost(now, dt);
+    this.updateBotFiring(now);
+    this.updateMovement(dt);
+    this.handlePlayerFiring(now);
     this.handleCropPickups();
     this.updateSeedlings(now);
     this.spawnAmbientSeedlings();
-    this.handleCollisions(now, preMove);
+    this.updateSeedProjectiles(now, dt);
     this.flush();
   }
 
@@ -360,12 +416,11 @@ export class Room {
 
   private speedFor(p: InternalPlayer) {
     const penalty = Math.min(C.MAX_SPEED_PENALTY, p.crops / C.SPEED_PENALTY_PER_CROP);
-    let speed = C.BASE_SPEED * (1 - penalty);
-    if (p.boostRequested && p.crops > 0) speed *= C.BOOST_SPEED_MULTIPLIER;
-    return speed;
+    const speed = C.BASE_SPEED * (1 - penalty);
+    return p.isBot ? speed * C.BOT_SPEED_MULTIPLIER : speed;
   }
 
-  private updateMovementAndBoost(now: number, dt: number) {
+  private updateMovement(dt: number) {
     for (const p of this.players.values()) {
       const speed = this.speedFor(p);
       if (p.dirX !== 0 || p.dirY !== 0) {
@@ -380,14 +435,104 @@ export class Room {
       const clamped = clampToCircle(p.x, p.y, this.arenaRadius - this.radiusFor(p.crops));
       p.x = clamped.x;
       p.y = clamped.y;
+    }
+  }
 
-      // bots never boost — they just wander and collect.
-      const boosting = !p.isBot && p.boostRequested && p.crops > 0;
-      if (boosting && now - p.lastBoostCostAt >= C.BOOST_COST_INTERVAL_MS) {
-        p.lastBoostCostAt = now;
-        p.crops = Math.max(0, p.crops - C.BOOST_COST_CROPS);
-        this.plantSeedling(p.x, p.y, now);
+  private handlePlayerFiring(now: number) {
+    for (const p of this.players.values()) {
+      if (p.isBot || !p.firing) continue;
+      this.tryFire(p, now, p.facingX, p.facingY);
+    }
+  }
+
+  private tryFire(p: InternalPlayer, now: number, dirX: number, dirY: number) {
+    if (dirX === 0 && dirY === 0) return;
+    if (p.crops < C.SEED_COST_CROPS) return;
+    if (now - p.lastFireAt < C.FIRE_COOLDOWN_MS) return;
+    p.lastFireAt = now;
+    p.crops -= C.SEED_COST_CROPS;
+    const seed: InternalSeedProjectile = {
+      id: randomId("seed"),
+      x: p.x,
+      y: p.y,
+      dirX,
+      dirY,
+      ownerId: p.id,
+      traveled: 0,
+    };
+    this.seeds.set(seed.id, seed);
+  }
+
+  private updateSeedProjectiles(now: number, dt: number) {
+    const stepDist = C.SEED_PROJECTILE_SPEED * dt;
+    for (const seed of [...this.seeds.values()]) {
+      const preX = seed.x;
+      const preY = seed.y;
+      const remaining = C.SEED_RANGE - seed.traveled;
+      const step = Math.min(stepDist, remaining);
+      const nextX = preX + seed.dirX * step;
+      const nextY = preY + seed.dirY * step;
+
+      let hit: InternalPlayer | null = null;
+      for (const p of this.players.values()) {
+        if (p.id === seed.ownerId) continue;
+        if (now < p.invulnUntil) continue;
+        if (sweptCircleOverlap(preX - p.x, preY - p.y, nextX - p.x, nextY - p.y, C.SEED_HIT_RADIUS)) {
+          hit = p;
+          break;
+        }
       }
+
+      if (hit) {
+        this.resolveSeedHit(seed, hit, now);
+        this.seeds.delete(seed.id);
+        continue;
+      }
+
+      seed.x = nextX;
+      seed.y = nextY;
+      seed.traveled += step;
+
+      if (seed.traveled >= C.SEED_RANGE - 0.01) {
+        // Missed everyone — plants where it lands instead of just vanishing.
+        this.plantSeedling(seed.x, seed.y, now);
+        this.seeds.delete(seed.id);
+      }
+    }
+  }
+
+  private resolveSeedHit(seed: InternalSeedProjectile, target: InternalPlayer, now: number) {
+    const shooter = this.players.get(seed.ownerId) ?? null;
+    const crit = Math.random() < C.SEED_HIT_CRIT_CHANCE;
+    const nominalDrop = crit ? C.SEED_HIT_CRIT_DROP : C.SEED_HIT_DROP;
+    const eliminated = target.crops < nominalDrop;
+    const actualDrop = eliminated ? target.crops : nominalDrop;
+
+    target.invulnUntil = now + C.HIT_INVULN_MS;
+
+    // Broadcast to the whole room, not just the two involved, so the red
+    // "-20"/"-30" is visible to anyone nearby watching, not just the pair.
+    this.broadcast({ t: "seedImpact", targetId: target.id, amount: actualDrop, crit });
+
+    const towardX = shooter ? shooter.x : target.x;
+    const towardY = shooter ? shooter.y : target.y;
+    this.scatterCropsToward(target.x, target.y, actualDrop, towardX, towardY);
+
+    if (eliminated) {
+      if (!target.isBot) this.send(target, { t: "popped", byName: shooter?.name ?? "a seed" });
+      this.leave(target.id);
+    } else {
+      target.crops -= actualDrop;
+    }
+
+    if (shooter && !shooter.isBot) {
+      this.send(shooter, {
+        t: "hitConfirm",
+        targetName: target.name,
+        targetIsBot: target.isBot,
+        scattered: actualDrop,
+        eliminated,
+      });
     }
   }
 
@@ -449,117 +594,32 @@ export class Room {
     }
   }
 
-  private handleCollisions(now: number, preMove: Map<string, { x: number; y: number }>) {
-    const list = [...this.players.values()];
-    for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const a = list[i];
-        const b = list[j];
-        // `list` is a snapshot from the start of this tick — if either was
-        // eliminated by an earlier pair's resolution this same tick, it's
-        // still sitting in `list` but no longer actually in the room.
-        if (!this.players.has(a.id) || !this.players.has(b.id)) continue;
-        if (now < a.invulnUntil || now < b.invulnUntil) continue;
-
-        const ra = this.radiusFor(a.crops);
-        const rb = this.radiusFor(b.crops);
-        const rSum = ra + rb;
-
-        // Swept check across this whole tick's movement, not just the
-        // end-of-tick position — a point check misses fast-moving pairs
-        // (especially boosting) that cross paths within a single tick.
-        const preA = preMove.get(a.id) ?? { x: a.x, y: a.y };
-        const preB = preMove.get(b.id) ?? { x: b.x, y: b.y };
-        const overlapped = sweptCircleOverlap(
-          preA.x - preB.x,
-          preA.y - preB.y,
-          a.x - b.x,
-          a.y - b.y,
-          rSum
-        );
-        if (!overlapped) continue;
-
-        // Require a real crop advantage — at 0-vs-0 the ratio check alone
-        // (0 >= 0 * RATIO) would call it a "win" and pop someone for no
-        // reason, which reads as a bug the first time two empty players
-        // bump into each other.
-        let winner: InternalPlayer | null = null;
-        let loser: InternalPlayer | null = null;
-        if (a.crops > 0 && a.crops >= b.crops * C.RAM_WIN_RATIO) [winner, loser] = [a, b];
-        else if (b.crops > 0 && b.crops >= a.crops * C.RAM_WIN_RATIO) [winner, loser] = [b, a];
-        if (!winner || !loser) continue; // too close in size — harmless bump
-
-        // Bots can win or lose like anyone else here — they're just never
-        // the ones picking the fight. pickBotTarget() only ever aims a bot
-        // at the nearest crop, never at a player, so any collision
-        // involving a bot is an incidental crossing of paths while it was
-        // out collecting, not a deliberate attack.
-        this.resolveRam(winner, loser, now);
-      }
-    }
-  }
-
-  private resolveRam(winner: InternalPlayer, loser: InternalPlayer, now: number) {
-    const stolen = Math.round(loser.crops * C.RAM_STEAL_FRACTION);
-    const remaining = loser.crops - stolen;
-
-    winner.invulnUntil = now + C.COLLISION_INVULN_MS;
-
-    // Knock the loser back so the scattered pile isn't just sitting under
-    // them for an instant, free re-pickup.
-    const dx = loser.x - winner.x;
-    const dy = loser.y - winner.y;
+  /** Scatters crops around a point shifted partway from the victim toward
+   * the shooter (HIT_SCATTER_TOWARD_SHOOTER_FRACTION of the way there,
+   * capped at SEED_RANGE so a far-off shooter doesn't pull the drop
+   * halfway across the map) rather than centered on the victim, so the
+   * shooter can collect the drop more easily than the victim can just
+   * immediately re-collect their own loss. */
+  private scatterCropsToward(x: number, y: number, count: number, towardX: number, towardY: number) {
+    const dx = towardX - x;
+    const dy = towardY - y;
     const mag = Math.hypot(dx, dy) || 1;
-    const pushed = clampToCircle(
-      loser.x + (dx / mag) * C.RAM_KNOCKBACK_DIST,
-      loser.y + (dy / mag) * C.RAM_KNOCKBACK_DIST,
-      this.arenaRadius - this.radiusFor(remaining)
-    );
-    loser.x = pushed.x;
-    loser.y = pushed.y;
+    const dirX = dx / mag;
+    const dirY = dy / mag;
+    const centerShift = Math.min(mag, C.SEED_RANGE) * C.HIT_SCATTER_TOWARD_SHOOTER_FRACTION;
+    const centerX = x + dirX * centerShift;
+    const centerY = y + dirY * centerShift;
+    const baseAngle = Math.atan2(dirY, dirX);
 
-    // Scattered (not silently transferred) so bystanders can dive in too.
-    this.scatterCrops(loser.x, loser.y, stolen);
-
-    const eliminated = remaining <= C.POP_THRESHOLD_CROPS;
-    // The only feedback a successful ram gave the winner before was the
-    // other player quietly vanishing — easy to miss, and reads as "nothing
-    // happened" especially when the target's a bot. Tell them explicitly.
-    if (!winner.isBot) {
-      this.send(winner, {
-        t: "ramHit",
-        targetName: loser.name,
-        targetIsBot: loser.isBot,
-        scattered: stolen + (eliminated ? remaining : 0),
-        eliminated,
-      });
-    }
-
-    if (eliminated) {
-      // Dying is final, not a stumble — the loser is eliminated outright
-      // (same as leave(), which also broadcasts playerLeft, resizes the
-      // arena, and — for a bot — immediately spawns its replacement via
-      // rebalanceBots()) rather than respawned in place to keep playing.
-      // The client shows a game-over overlay on "popped" and only gets
-      // back in by reconnecting fresh (see connectToArena on Play Again).
-      this.scatterCrops(loser.x, loser.y, remaining);
-      if (!loser.isBot) this.send(loser, { t: "popped", byName: winner.name });
-      this.leave(loser.id);
-    } else {
-      loser.invulnUntil = now + C.COLLISION_INVULN_MS;
-      loser.crops = remaining;
-    }
-  }
-
-  private scatterCrops(x: number, y: number, count: number) {
     for (let i = 0; i < count; i++) {
       if (this.crops.size + this.seedlings.size >= C.WORLD_ENTITY_CAP) break;
-      const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * 40;
+      const spread = (Math.random() - 0.5) * Math.PI * 0.6; // +/- 54 degrees of cone
+      const angle = baseAngle + spread;
+      const dist = 10 + Math.random() * 40;
       const crop: InternalCrop = {
         id: randomId("cr"),
-        x: x + Math.cos(angle) * dist,
-        y: y + Math.sin(angle) * dist,
+        x: centerX + Math.cos(angle) * dist,
+        y: centerY + Math.sin(angle) * dist,
       };
       this.addCrop(crop);
       this.pendingCropSpawn.push(crop);
@@ -572,9 +632,16 @@ export class Room {
       .slice(0, 10)
       .map((p) => ({ id: p.id, name: p.name, crops: p.crops }));
 
+    const seeds: SeedProjectileSnapshot[] = [...this.seeds.values()].map((s) => ({
+      id: s.id,
+      x: s.x,
+      y: s.y,
+    }));
+
     this.broadcast({
       t: "state",
       players: [...this.players.values()].map(this.toSnapshot),
+      seeds,
       leaderboard,
       playerCount: this.realPlayerCount(),
       arenaRadius: this.arenaRadius,

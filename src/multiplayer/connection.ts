@@ -9,7 +9,7 @@ const DEFAULT_WS_URL = process.env.EXPO_PUBLIC_ARENA_WS_URL || "wss://harvest-ru
 
 let socket: WebSocket | null = null;
 let inputThrottleId: ReturnType<typeof setTimeout> | null = null;
-let pendingInput: { dirX: number; dirY: number; boost: boolean } | null = null;
+let pendingInput: { dirX: number; dirY: number; firing: boolean } | null = null;
 
 const INPUT_SEND_INTERVAL_MS = 66; // matches server tick — no point sending faster
 
@@ -20,7 +20,7 @@ function handleMessage(msg: ServerMessage) {
       store._setWelcome(msg);
       break;
     case "state":
-      store._applyState(msg.players, msg.leaderboard, msg.playerCount, msg.arenaRadius);
+      store._applyState(msg.players, msg.seeds, msg.leaderboard, msg.playerCount, msg.arenaRadius);
       break;
     case "cropSpawn":
       store._addCrops(msg.crops);
@@ -40,13 +40,16 @@ function handleMessage(msg: ServerMessage) {
     case "popped":
       store._setPopped(msg.byName);
       break;
-    case "ramHit":
-      store._setRamHit({
+    case "hitConfirm":
+      store._setHitConfirm({
         targetName: msg.targetName,
         targetIsBot: msg.targetIsBot,
         scattered: msg.scattered,
         eliminated: msg.eliminated,
       });
+      break;
+    case "seedImpact":
+      store._addImpact({ targetId: msg.targetId, amount: msg.amount, crit: msg.crit });
       break;
   }
 }
@@ -99,11 +102,11 @@ export function disconnectFromArena() {
   useArenaStore.getState()._setStatus("idle");
 }
 
-/** Direction + boost are throttled to one send per tick interval — the
+/** Direction + firing are throttled to one send per tick interval — the
  * latest call before each interval elapses wins, so rapid mouse/touch
  * movement doesn't flood the socket. */
-export function sendInput(dirX: number, dirY: number, boost: boolean) {
-  pendingInput = { dirX, dirY, boost };
+export function sendInput(dirX: number, dirY: number, firing: boolean) {
+  pendingInput = { dirX, dirY, firing };
   if (inputThrottleId) return;
   inputThrottleId = setTimeout(() => {
     inputThrottleId = null;

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ControlScheme = "dragBoostButton" | "dragDistanceBoost" | "dpadBoostButton";
+export type ControlScheme = "dragFireButton" | "dragDistanceFire" | "dpadFireButton";
 
 interface SettingsState {
   hapticsOn: boolean;
@@ -12,6 +12,6 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()((set) => ({
   hapticsOn: true,
   toggleHaptics: () => set((s) => ({ hapticsOn: !s.hapticsOn })),
-  controlScheme: "dragBoostButton",
+  controlScheme: "dragFireButton",
   setControlScheme: (controlScheme) => set({ controlScheme }),
 }));

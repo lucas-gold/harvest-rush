@@ -6,6 +6,7 @@ export const PALETTE = {
   skin1: "#f3c99a",
   skin2: "#d9a066",
   skin3: "#a86f45",
+  skin4: "#7a4a2e",
   hairBrown: "#5b3a29",
   hairBlack: "#2b2b2b",
   hairBlonde: "#e8c96b",

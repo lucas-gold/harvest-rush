@@ -1,6 +1,6 @@
 import { AvatarCustomization, ClientMessage } from "./protocol";
 
-const SKINS = new Set(["skin1", "skin2", "skin3"]);
+const SKINS = new Set(["skin1", "skin2", "skin3", "skin4"]);
 const HAIRS = new Set(["hairBrown", "hairBlack", "hairBlonde", "hairRed"]);
 const SHIRTS = new Set(["shirtRed", "shirtBlue", "shirtGreen", "shirtYellow"]);
 
@@ -41,7 +41,7 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       t: "input",
       dirX: Math.max(-1, Math.min(1, num(m.dirX))),
       dirY: Math.max(-1, Math.min(1, num(m.dirY))),
-      boost: m.boost === true,
+      firing: m.firing === true,
     };
   }
   return null;

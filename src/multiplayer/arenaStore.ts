@@ -4,9 +4,20 @@ import {
   LeaderboardEntry,
   PlayerSnapshot,
   SeedlingSnapshot,
+  SeedProjectileSnapshot,
 } from "./protocol";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "error";
+
+export interface DamageImpact {
+  id: string;
+  targetId: string;
+  amount: number;
+  crit: boolean;
+  at: number;
+}
+
+const IMPACT_MAX_AGE_MS = 2000; // pruned well after the ~1.2s the toast actually renders for
 
 interface ArenaState {
   status: ConnectionStatus;
@@ -26,13 +37,26 @@ interface ArenaState {
   cropsVersion: number;
   seedlings: Record<string, SeedlingSnapshot>;
   seedlingsVersion: number;
+  /** Seeds in flight — short-lived, so just replaced wholesale each tick
+   * rather than mutated like crops/seedlings. */
+  seeds: SeedProjectileSnapshot[];
   leaderboard: LeaderboardEntry[];
   playerCount: number;
   /** Bumped on every pop so the overlay can key off it even if byName repeats. */
   lastPop: { byName: string | null; finalCrops: number; at: number } | null;
-  /** Feedback for the winner of a ram — otherwise a successful hit was just
+  /** Feedback for the winner of a hit — otherwise landing a shot was just
    * the other player quietly vanishing, easy to read as "nothing happened." */
-  lastRamHit: { targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean; at: number } | null;
+  lastHitConfirm: {
+    targetName: string;
+    targetIsBot: boolean;
+    scattered: number;
+    eliminated: boolean;
+    at: number;
+  } | null;
+  /** Recent floating "-20"/"-30" damage numbers, keyed by a unique impact
+   * id (not targetId) so more than one can be in flight for the same
+   * player at once. Pruned on every add rather than needing a timer. */
+  impacts: DamageImpact[];
 
   _setStatus: (status: ConnectionStatus) => void;
   _setWelcome: (payload: {
@@ -44,6 +68,7 @@ interface ArenaState {
   }) => void;
   _applyState: (
     players: PlayerSnapshot[],
+    seeds: SeedProjectileSnapshot[],
     leaderboard: LeaderboardEntry[],
     playerCount: number,
     arenaRadius: number
@@ -55,7 +80,8 @@ interface ArenaState {
   _removePlayer: (id: string) => void;
   _setPopped: (byName: string | null) => void;
   _clearPop: () => void;
-  _setRamHit: (hit: { targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }) => void;
+  _setHitConfirm: (hit: { targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }) => void;
+  _addImpact: (impact: { targetId: string; amount: number; crit: boolean }) => void;
   _reset: () => void;
 }
 
@@ -68,17 +94,21 @@ const initial = {
   cropsVersion: 0,
   seedlings: {} as Record<string, SeedlingSnapshot>,
   seedlingsVersion: 0,
+  seeds: [] as SeedProjectileSnapshot[],
   leaderboard: [] as LeaderboardEntry[],
   playerCount: 0,
   lastPop: null as { byName: string | null; finalCrops: number; at: number } | null,
-  lastRamHit: null as {
+  lastHitConfirm: null as {
     targetName: string;
     targetIsBot: boolean;
     scattered: number;
     eliminated: boolean;
     at: number;
   } | null,
+  impacts: [] as DamageImpact[],
 };
+
+let impactIdCounter = 0;
 
 export const useArenaStore = create<ArenaState>()((set, get) => ({
   ...initial,
@@ -103,9 +133,10 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
       status: "connected",
     })),
 
-  _applyState: (players, leaderboard, playerCount, arenaRadius) =>
+  _applyState: (players, seeds, leaderboard, playerCount, arenaRadius) =>
     set({
       players: Object.fromEntries(players.map((p) => [p.id, p])),
+      seeds,
       leaderboard,
       playerCount,
       arenaRadius,
@@ -152,7 +183,15 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
 
   _clearPop: () => set({ lastPop: null }),
 
-  _setRamHit: (hit) => set({ lastRamHit: { ...hit, at: Date.now() } }),
+  _setHitConfirm: (hit) => set({ lastHitConfirm: { ...hit, at: Date.now() } }),
 
-  _reset: () => set({ ...initial, crops: {}, seedlings: {}, players: {} }),
+  _addImpact: (impact) =>
+    set((s) => {
+      const now = Date.now();
+      const next = s.impacts.filter((i) => now - i.at < IMPACT_MAX_AGE_MS);
+      next.push({ ...impact, id: `imp${impactIdCounter++}`, at: now });
+      return { impacts: next };
+    }),
+
+  _reset: () => set({ ...initial, crops: {}, seedlings: {}, players: {}, seeds: [], impacts: [] }),
 }));

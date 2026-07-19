@@ -33,10 +33,10 @@ export function clampToCircle(x: number, y: number, radius: number): { x: number
 /**
  * Did two circles overlap at any point while moving linearly from their
  * tick-start to tick-end positions? A single end-of-tick distance check
- * misses fast-moving pairs that cross paths entirely within one tick
- * (e.g. two boosting players closing at ~800 units/sec against a ~32-unit
- * collision radius at 15 ticks/sec covers ~52 units per tick) — this
- * solves for the closest approach across the whole tick instead.
+ * misses fast-moving pairs that cross paths entirely within one tick (e.g.
+ * a seed at SEED_PROJECTILE_SPEED against a player's collision radius can
+ * cover most of that radius in a single tick) — this solves for the
+ * closest approach across the whole tick instead.
  */
 export function sweptCircleOverlap(
   relStartX: number,

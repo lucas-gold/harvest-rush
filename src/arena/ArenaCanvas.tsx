@@ -11,10 +11,14 @@ import { FarmField } from "./FarmField";
 import { computeZoom, isInViewport, worldToScreen } from "./camera";
 import { PLAYER_BASE_RADIUS, directionFromVector } from "./gameMath";
 import { useSmoothedPlayers } from "./useSmoothedPlayers";
+import { useSmoothedZoom } from "./useSmoothedZoom";
 
 const CROP_WORLD_SIZE = 20;
 const SEEDLING_WORLD_SIZE = 14;
+const SEED_WORLD_SIZE = 10;
 const CULL_MARGIN = 80;
+const DAMAGE_NUMBER_DURATION_MS = 1100;
+const DAMAGE_NUMBER_RISE_PX = 42;
 
 // Only crops/seedlings within this world-space distance of the camera get
 // the full pixel-art SVG sprite (dozens of <Rect> elements each); farther
@@ -27,15 +31,15 @@ const CULL_MARGIN = 80;
 // let a full-detail viewport (measured: ~10,700 SVG shape elements at
 // once) through right when a player first connects — exactly the moment
 // that showed up as a ~370-430ms main-thread stall.
-const CROP_DETAIL_RADIUS = 180;
-const SEEDLING_DETAIL_RADIUS = 150;
+const CROP_DETAIL_RADIUS = 260;
+const SEEDLING_DETAIL_RADIUS = 220;
 // Same idea, applied to other players: a full player is an avatar SVG plus
 // a backpack base plus up to MAX_BUNDLES more SVGs for a big one — up to
 // ~10 sprite instances each, and with up to 40 players that's the single
 // largest remaining render cost. Distant players (you're not about to
 // interact with them anyway) collapse to one plain colored dot. Self
 // always renders in full detail regardless of distance (there's only one).
-const PLAYER_DETAIL_RADIUS = 300;
+const PLAYER_DETAIL_RADIUS = 420;
 
 const groundCropMatrix = buildGroundCropSprite();
 const seedlingMatrix = buildSeedlingSprite();
@@ -48,14 +52,17 @@ export function ArenaCanvas() {
   const cropsVersion = useArenaStore((s) => s.cropsVersion);
   const seedlings = useArenaStore((s) => s.seedlings);
   const seedlingsVersion = useArenaStore((s) => s.seedlingsVersion);
+  const seeds = useArenaStore((s) => s.seeds);
+  const impacts = useArenaStore((s) => s.impacts);
   const arenaRadius = useArenaStore((s) => s.arenaRadius);
 
   const lastDirRef = useRef<Record<string, "down" | "up" | "left" | "right">>({});
 
   const self = selfId ? players[selfId] : undefined;
+  const zoom = useSmoothedZoom(computeZoom(self?.crops ?? 0));
   const camera = useMemo(
-    () => ({ x: self?.x ?? 0, y: self?.y ?? 0, zoom: computeZoom(self?.crops ?? 0) }),
-    [self?.x, self?.y, self?.crops]
+    () => ({ x: self?.x ?? 0, y: self?.y ?? 0, zoom }),
+    [self?.x, self?.y, zoom]
   );
 
   const walkFrame: 0 | 1 = Math.floor(Date.now() / 150) % 2 === 0 ? 0 : 1;
@@ -93,6 +100,12 @@ export function ArenaCanvas() {
     () =>
       Object.values(players).filter((p) => isInViewport(p.x, p.y, camera, width, height, 250)),
     [players, camera, width, height]
+  );
+  // Seeds are few and short-lived (well under a second in flight) — no
+  // version-counter dance needed, just filter the latest array each render.
+  const visibleSeeds = useMemo(
+    () => seeds.filter((s) => isInViewport(s.x, s.y, camera, width, height, 40)),
+    [seeds, camera, width, height]
   );
 
   return (
@@ -252,6 +265,45 @@ export function ArenaCanvas() {
           </View>
         );
       })}
+
+      {visibleSeeds.map((s) => {
+        const pos = worldToScreen(s.x, s.y, camera, width, height);
+        const size = Math.max(5, SEED_WORLD_SIZE * camera.zoom);
+        return (
+          <View
+            key={s.id}
+            pointerEvents="none"
+            style={[styles.seedDot, { left: pos.x - size / 2, top: pos.y - size / 2, width: size, height: size, borderRadius: size / 2 }]}
+          />
+        );
+      })}
+
+      {impacts.map((imp) => {
+        const target = players[imp.targetId];
+        if (!target) return null;
+        const age = Date.now() - imp.at;
+        if (age >= DAMAGE_NUMBER_DURATION_MS) return null;
+        const progress = age / DAMAGE_NUMBER_DURATION_MS;
+        const pos = worldToScreen(target.x, target.y, camera, width, height);
+        const r = PLAYER_BASE_RADIUS * camera.zoom;
+        const rise = DAMAGE_NUMBER_RISE_PX * progress;
+        return (
+          <View
+            key={imp.id}
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: pos.x - 30,
+              top: pos.y - r - 26 - rise,
+              width: 60,
+              alignItems: "center",
+              opacity: 1 - progress,
+            }}
+          >
+            <Text style={[styles.damageNumber, imp.crit && styles.damageNumberCrit]}>-{imp.amount}</Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -271,6 +323,24 @@ const styles = StyleSheet.create({
   playerDot: {
     opacity: 0.85,
     borderWidth: 2,
+  },
+  seedDot: {
+    position: "absolute",
+    backgroundColor: "#e8c14a",
+    borderWidth: 1,
+    borderColor: "#8a5a1c",
+  },
+  damageNumber: {
+    color: "#e0433a",
+    fontSize: 18,
+    fontWeight: "800",
+    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  damageNumberCrit: {
+    color: "#ff7a1a",
+    fontSize: 23,
   },
   boundaryFill: {
     position: "absolute",

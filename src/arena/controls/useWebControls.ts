@@ -8,19 +8,19 @@ const MOVE_KEYS = new Set(["arrowleft", "arrowright", "arrowup", "arrowdown", "w
  * Web controls: every method works simultaneously, no picking one —
  * mouse position steers continuously (no click needed, true to the
  * genre), WASD/arrow keys steer too (keyboard wins over the mouse
- * whenever a movement key is actively held), and boost fires from a
- * left click anywhere, holding space, or the on-screen boost button
- * (via the returned setButtonBoost, so all three merge into one state).
+ * whenever a movement key is actively held), and firing triggers from a
+ * left click anywhere, holding space, or the on-screen fire button
+ * (via the returned setButtonFiring, so all three merge into one state).
  */
 export function useWebControls() {
-  const setButtonBoostRef = useRef<(v: boolean) => void>(() => {});
+  const setButtonFiringRef = useRef<(v: boolean) => void>(() => {});
 
   useEffect(() => {
     let mouseDir = { x: 0, y: 0 };
     let keyDir = { x: 0, y: 0 };
-    let mouseBoost = false;
-    let spaceBoost = false;
-    let buttonBoost = false;
+    let mouseFiring = false;
+    let spaceFiring = false;
+    let buttonFiring = false;
     const keysHeld = new Set<string>();
 
     const recomputeKeyDir = () => {
@@ -36,11 +36,11 @@ export function useWebControls() {
 
     const send = () => {
       const dir = keyDir.x !== 0 || keyDir.y !== 0 ? keyDir : mouseDir;
-      sendInput(dir.x, dir.y, mouseBoost || spaceBoost || buttonBoost);
+      sendInput(dir.x, dir.y, mouseFiring || spaceFiring || buttonFiring);
     };
 
-    setButtonBoostRef.current = (v: boolean) => {
-      buttonBoost = v;
+    setButtonFiringRef.current = (v: boolean) => {
+      buttonFiring = v;
       send();
     };
 
@@ -50,19 +50,19 @@ export function useWebControls() {
     };
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
-      mouseBoost = true;
+      mouseFiring = true;
       send();
     };
     const onMouseUp = (e: MouseEvent) => {
       if (e.button !== 0) return;
-      mouseBoost = false;
+      mouseFiring = false;
       send();
     };
     const onKeyDown = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === " ") {
         e.preventDefault();
-        spaceBoost = true;
+        spaceFiring = true;
         send();
         return;
       }
@@ -75,7 +75,7 @@ export function useWebControls() {
     const onKeyUp = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === " ") {
-        spaceBoost = false;
+        spaceFiring = false;
         send();
         return;
       }
@@ -101,6 +101,6 @@ export function useWebControls() {
   }, []);
 
   return {
-    setButtonBoost: (v: boolean) => setButtonBoostRef.current(v),
+    setButtonFiring: (v: boolean) => setButtonFiringRef.current(v),
   };
 }

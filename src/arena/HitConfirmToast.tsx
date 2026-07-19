@@ -7,22 +7,22 @@ import { useSettingsStore } from "../state/settingsStore";
 
 const VISIBLE_MS = 1600;
 
-/** A ram landing was previously silent for the winner — the other player
+/** Landing a shot was previously silent for the shooter — the other player
  * just vanished, easy to miss and easy to read as "nothing happened."
  * This is a brief, non-blocking toast (unlike PopOverlay, which is the
- * loser's full-screen game-over) confirming the hit and what it won. */
-export function RamHitToast() {
-  const lastRamHit = useArenaStore((s) => s.lastRamHit);
-  const [visibleHit, setVisibleHit] = useState<typeof lastRamHit>(null);
+ * victim's full-screen game-over) confirming the hit and what it won. */
+export function HitConfirmToast() {
+  const lastHitConfirm = useArenaStore((s) => s.lastHitConfirm);
+  const [visibleHit, setVisibleHit] = useState<typeof lastHitConfirm>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!lastRamHit) return;
-    setVisibleHit(lastRamHit);
+    if (!lastHitConfirm) return;
+    setVisibleHit(lastHitConfirm);
     if (useSettingsStore.getState().hapticsOn) {
       Haptics.impactAsync(
-        lastRamHit.eliminated ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium
+        lastHitConfirm.eliminated ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium
       ).catch(() => {});
     }
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -36,7 +36,7 @@ export function RamHitToast() {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastRamHit]);
+  }, [lastHitConfirm]);
 
   if (!visibleHit) return null;
 

@@ -37,7 +37,7 @@ export function PopOverlay({ onPlayAgain, onExit }: Props) {
         <View style={styles.card}>
           <PixelText style={styles.title}>Popped!</PixelText>
           <PixelText weight="semibold" style={styles.subtitle}>
-            {lastPop.byName ? `${lastPop.byName} ran you over.` : "Better luck next run."}
+            {lastPop.byName ? `${lastPop.byName} shot you down.` : "Better luck next run."}
           </PixelText>
           <View style={styles.statRow}>
             <PixelText weight="semibold" style={styles.statLabel}>

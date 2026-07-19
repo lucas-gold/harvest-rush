@@ -4,7 +4,7 @@
 // bundle; the server is a long-running Node process).
 
 export type AvatarCustomization = {
-  skinTone: "skin1" | "skin2" | "skin3";
+  skinTone: "skin1" | "skin2" | "skin3" | "skin4";
   hairColor: "hairBrown" | "hairBlack" | "hairBlonde" | "hairRed";
   shirtColor: "shirtRed" | "shirtBlue" | "shirtGreen" | "shirtYellow";
   hat: boolean;
@@ -19,7 +19,6 @@ export interface PlayerSnapshot {
   dirX: number;
   dirY: number;
   crops: number;
-  boosting: boolean;
   invulnUntil: number;
   isBot: boolean;
 }
@@ -37,6 +36,15 @@ export interface SeedlingSnapshot {
   plantedAt: number;
 }
 
+/** A seed in flight — short-lived (well under a second at typical range),
+ * so unlike players these aren't interpolated client-side, just rendered
+ * at their latest broadcast position. */
+export interface SeedProjectileSnapshot {
+  id: string;
+  x: number;
+  y: number;
+}
+
 export interface LeaderboardEntry {
   id: string;
   name: string;
@@ -45,7 +53,7 @@ export interface LeaderboardEntry {
 
 export type ClientMessage =
   | { t: "join"; name: string; avatar: AvatarCustomization }
-  | { t: "input"; dirX: number; dirY: number; boost: boolean };
+  | { t: "input"; dirX: number; dirY: number; firing: boolean };
 
 export type ServerMessage =
   | {
@@ -60,6 +68,7 @@ export type ServerMessage =
   | {
       t: "state";
       players: PlayerSnapshot[];
+      seeds: SeedProjectileSnapshot[];
       leaderboard: LeaderboardEntry[];
       playerCount: number;
       arenaRadius: number;
@@ -69,5 +78,6 @@ export type ServerMessage =
   | { t: "seedlingSpawn"; seedlings: SeedlingSnapshot[] }
   | { t: "seedlingRemove"; ids: string[] }
   | { t: "popped"; byName: string | null }
-  | { t: "ramHit"; targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }
+  | { t: "hitConfirm"; targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }
+  | { t: "seedImpact"; targetId: string; amount: number; crit: boolean }
   | { t: "playerLeft"; id: string };

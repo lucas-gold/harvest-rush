@@ -21,15 +21,16 @@ export const MAX_PLAYERS_PER_ROOM = 40;
  * counts on a <$5/mo box. */
 export const TICK_MS = 60;
 
-/** Movement. */
-export const BASE_SPEED = 140; // world units / sec at 0 crops (down from 220 -> 176 -> 140)
+/** Movement. No more speed boost (see seed combat below) — base is a
+ * little higher than it was pre-removal to compensate for losing that
+ * burst-speed utility entirely. */
+export const BASE_SPEED = 155;
 export const MAX_SPEED_PENALTY = 0.4; // biggest players top out 40% slower
 export const SPEED_PENALTY_PER_CROP = 300; // crops to reach the full penalty
-export const BOOST_SPEED_MULTIPLIER = 1.8;
-
-/** Boosting drains your stack and plants what you drop as a seedling. */
-export const BOOST_COST_INTERVAL_MS = 350;
-export const BOOST_COST_CROPS = 1;
+/** Bots have no reaction time, distraction, or aiming imprecision — without
+ * a handicap they out-collect any real player just by being mechanically
+ * perfect. Slowing them down physically is the most direct lever. */
+export const BOT_SPEED_MULTIPLIER = 0.72;
 
 /** Sizing — radius grows with the sqrt of crop count (area-proportional,
  * agar.io-style) so it doesn't blow up linearly at high scores. */
@@ -50,22 +51,33 @@ export const COVERAGE_FOOTPRINT_RADIUS = 24;
 export const SPAWN_MAX_PER_TICK = 14;
 export const WORLD_ENTITY_CAP = 2200; // hard safety ceiling on crops+seedlings combined
 
-/** PvP: colliding with a smaller/lighter player scatters this fraction of
- * their stack; the rest stays with them so a graze isn't a death sentence. */
-export const RAM_STEAL_FRACTION = 0.5;
-/** Below this many crops post-hit, the loser pops outright instead of just
- * losing a share — keeps the "you got got" moment clean rather than leaving
- * players stuck at 1-2 crops. */
-export const POP_THRESHOLD_CROPS = 3;
-/** Grace period after any collision before that pair can collide again. */
-export const COLLISION_INVULN_MS = 1200;
-/** Push-back applied to the loser so the scattered crops are actually
- * contestable instead of sitting right under them. */
-export const RAM_KNOCKBACK_DIST = 60;
-/** Minimum crop advantage (attacker/defender ratio) required to actually
- * win a collision — prevents near-equal players from constantly trading
- * hits on every graze. */
-export const RAM_WIN_RATIO = 1.15;
+/** PvP: the old "ram into someone" mechanic is gone entirely, replaced by
+ * seed combat. Holding the fire button (formerly boost) spends a crop per
+ * shot on a cooldown and launches a seed in the player's current facing
+ * direction — close-ish range, not point-blank, not cross-map. */
+export const SEED_COST_CROPS = 1;
+export const FIRE_COOLDOWN_MS = 450;
+export const SEED_PROJECTILE_SPEED = 480; // world units / sec
+export const SEED_RANGE = 260; // world units
+export const SEED_HIT_RADIUS = 20; // how close a seed must pass to a player to land
+export const SEED_HIT_DROP = 20;
+export const SEED_HIT_CRIT_DROP = 30;
+export const SEED_HIT_CRIT_CHANCE = 0.04;
+/** A hit's dropped crops land biased toward the shooter, not the victim —
+ * otherwise the victim could just immediately re-collect their own drop.
+ * 0 = scatters at the victim, 1 = scatters right at the shooter. */
+export const HIT_SCATTER_TOWARD_SHOOTER_FRACTION = 0.7;
+/** Grace period after spawning or getting hit before that player can be
+ * hit again — prevents an instant second hit from the same or a
+ * still-overlapping seed. */
+export const HIT_INVULN_MS = 500;
+
+/** Bots take the occasional shot too — sparse, and roughly aimed toward
+ * the arena center rather than at a specific target, for a bit of ambient
+ * danger without bots being real snipers. */
+export const BOT_FIRE_CHECK_INTERVAL_MS = 4000;
+export const BOT_FIRE_CHANCE = 0.2; // rolled once per check interval, per bot
+export const BOT_FIRE_CENTER_BIAS = 0.5; // 0 = pure random direction, 1 = always at center
 
 /** New players spawn with this many crops so they're not instantly helpless. */
 export const STARTING_CROPS = 0;
@@ -94,4 +106,3 @@ export function arenaRadiusForPopulation(totalOccupants: number): number {
   const fraction = ARENA_RADIUS_MIN_FRACTION + t * (ARENA_RADIUS_MAX_FRACTION - ARENA_RADIUS_MIN_FRACTION);
   return ARENA_RADIUS_REFERENCE * fraction;
 }
-
