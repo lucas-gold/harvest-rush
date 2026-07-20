@@ -37,6 +37,10 @@ interface InternalPlayer {
   botTargetX: number;
   botTargetY: number;
   nextBotFireCheckAt: number;
+  // bot-only reaction state — see BOT_AGGRO_* in constants.ts
+  aimTargetId: string | null;
+  aimUntil: number;
+  fleeUntil: number;
 }
 
 interface InternalCrop {
@@ -166,6 +170,9 @@ export class Room {
       botTargetX: 0,
       botTargetY: 0,
       nextBotFireCheckAt: 0,
+      aimTargetId: null,
+      aimUntil: 0,
+      fleeUntil: 0,
     };
     this.players.set(id, player);
     this.recomputeArenaRadius();
@@ -282,6 +289,9 @@ export class Room {
       botTargetX: spawn.x,
       botTargetY: spawn.y,
       nextBotFireCheckAt: Date.now() + Math.random() * C.BOT_FIRE_CHECK_INTERVAL_MS,
+      aimTargetId: null,
+      aimUntil: 0,
+      fleeUntil: 0,
     };
     this.players.set(id, bot);
   }
@@ -289,6 +299,46 @@ export class Room {
   private updateBots(now: number) {
     for (const p of this.players.values()) {
       if (!p.isBot) continue;
+
+      // A real player just standing nearby is enough to make a bot aim
+      // and fire back (a standoff), even without ever having been shot at.
+      if (!p.aimTargetId || now >= p.aimUntil) {
+        const nearestReal = this.nearestRealPlayerWithin(p, C.BOT_AGGRO_APPROACH_RADIUS);
+        if (nearestReal) {
+          p.aimTargetId = nearestReal.id;
+          p.aimUntil = now + C.BOT_AGGRO_AIM_DURATION_MS;
+        }
+      }
+
+      const aimTarget = p.aimTargetId ? this.players.get(p.aimTargetId) : undefined;
+      if (!aimTarget) p.aimTargetId = null;
+      const aiming = !!aimTarget && now < p.aimUntil;
+
+      if (aiming && aimTarget) {
+        // Face the threat regardless of movement, so fire aims correctly.
+        const tx = aimTarget.x - p.x;
+        const ty = aimTarget.y - p.y;
+        const tmag = Math.hypot(tx, ty) || 1;
+        p.facingX = tx / tmag;
+        p.facingY = ty / tmag;
+
+        if (now < p.fleeUntil) {
+          // Only from actually being fired at (see alertNearbyBots /
+          // resolveSeedHit) — a short, capped backing-away burst, not a
+          // full retreat across the map.
+          const dx = p.x - aimTarget.x;
+          const dy = p.y - aimTarget.y;
+          const mag = Math.hypot(dx, dy) || 1;
+          p.dirX = dx / mag;
+          p.dirY = dy / mag;
+        } else {
+          // Just approached, never fired at — hold ground and defend
+          // rather than scattering the instant anyone gets close.
+          p.dirX = 0;
+          p.dirY = 0;
+        }
+        continue;
+      }
 
       // Retarget on arrival, not just on a timer — with crops this dense,
       // "nearest crop" is often only a few units away, and waiting out the
@@ -317,6 +367,22 @@ export class Room {
     }
   }
 
+  /** Nearest non-bot player within `radius`, or null — used to trigger a
+   * bot's defensive aim/fire when a real player gets close. */
+  private nearestRealPlayerWithin(p: InternalPlayer, radius: number): InternalPlayer | null {
+    let best: InternalPlayer | null = null;
+    let bestD2 = radius * radius;
+    for (const other of this.players.values()) {
+      if (other.isBot || other.id === p.id) continue;
+      const d2 = dist2(p.x, p.y, other.x, other.y);
+      if (d2 <= bestD2) {
+        best = other;
+        bestD2 = d2;
+      }
+    }
+    return best;
+  }
+
   private pickBotTarget(p: InternalPlayer): { x: number; y: number } {
     // Always beelining for the literal nearest crop reads as "circling in
     // place" once the field is dense enough that the nearest crop is
@@ -338,18 +404,51 @@ export class Room {
     return randomPointInCircle(this.arenaRadius * 0.9);
   }
 
-  /** Bots take the occasional pot-shot — sparse, and roughly toward the
-   * arena center rather than at anyone in particular (pickBotTarget never
-   * targets a player, so this is the only source of bot "aggression",
-   * and it's deliberately imprecise). */
+  /** Bots take the occasional pot-shot when nothing else is going on —
+   * sparse, and roughly toward the arena center rather than at anyone in
+   * particular. Once a bot is aiming at a real threat (see updateBots),
+   * that takes over instead: faster, aimed fire, but still jittered —
+   * reactive, not a laser. */
   private updateBotFiring(now: number) {
     for (const p of this.players.values()) {
       if (!p.isBot) continue;
+
+      const aimTarget = p.aimTargetId ? this.players.get(p.aimTargetId) : undefined;
+      if (aimTarget && now < p.aimUntil) {
+        if (now - p.lastFireAt < C.BOT_AGGRO_FIRE_INTERVAL_MS) continue;
+        const dir = this.jitteredDirectionToward(p, aimTarget);
+        this.tryFire(p, now, dir.x, dir.y);
+        continue;
+      }
+
       if (now < p.nextBotFireCheckAt) continue;
       p.nextBotFireCheckAt = now + C.BOT_FIRE_CHECK_INTERVAL_MS + Math.random() * 1000;
       if (Math.random() > C.BOT_FIRE_CHANCE) continue;
       const dir = this.centerBiasedDirection(p.x, p.y);
       this.tryFire(p, now, dir.x, dir.y);
+    }
+  }
+
+  /** Aimed at `target` but with some random spread — bots are reactive,
+   * not perfect shots. */
+  private jitteredDirectionToward(p: InternalPlayer, target: InternalPlayer): { x: number; y: number } {
+    const baseAngle = Math.atan2(target.y - p.y, target.x - p.x);
+    const angle = baseAngle + (Math.random() * 2 - 1) * C.BOT_AGGRO_AIM_JITTER_RAD;
+    return { x: Math.cos(angle), y: Math.sin(angle) };
+  }
+
+  /** A real player firing anywhere near a bot is enough for that bot to
+   * notice and react — aim back, and back off a short, capped distance —
+   * whether or not the shot actually lands (see resolveSeedHit for the
+   * "actually got hit" case, which triggers the same reaction). */
+  private alertNearbyBots(shooter: InternalPlayer, now: number) {
+    const r2 = C.BOT_AGGRO_NOTICE_RADIUS * C.BOT_AGGRO_NOTICE_RADIUS;
+    for (const bot of this.players.values()) {
+      if (!bot.isBot) continue;
+      if (dist2(bot.x, bot.y, shooter.x, shooter.y) > r2) continue;
+      bot.aimTargetId = shooter.id;
+      bot.aimUntil = now + C.BOT_AGGRO_AIM_DURATION_MS;
+      bot.fleeUntil = now + C.BOT_FLEE_DURATION_MS;
     }
   }
 
@@ -461,13 +560,26 @@ export class Room {
       traveled: 0,
     };
     this.seeds.set(seed.id, seed);
+    if (!p.isBot) this.alertNearbyBots(p, now);
   }
 
   private updateSeedProjectiles(now: number, dt: number) {
-    const stepDist = C.SEED_PROJECTILE_SPEED * dt;
     for (const seed of [...this.seeds.values()]) {
       const preX = seed.x;
       const preY = seed.y;
+
+      // Ease speed down over the last stretch of the flight instead of
+      // travelling at a constant speed and then stopping dead (hit) or
+      // vanishing (miss) — slowing into the landing point reads as a real
+      // object settling rather than a choppy, abrupt cutoff.
+      const rangeFrac = seed.traveled / C.SEED_RANGE;
+      let speedMul = 1;
+      if (rangeFrac > C.SEED_DECEL_START_FRACTION) {
+        const t = Math.min(1, (rangeFrac - C.SEED_DECEL_START_FRACTION) / (1 - C.SEED_DECEL_START_FRACTION));
+        speedMul = 1 - t * t * (1 - C.SEED_MIN_SPEED_FRACTION);
+      }
+      const stepDist = C.SEED_PROJECTILE_SPEED * speedMul * dt;
+
       const remaining = C.SEED_RANGE - seed.traveled;
       const step = Math.min(stepDist, remaining);
       const nextX = preX + seed.dirX * step;
@@ -509,6 +621,15 @@ export class Room {
     const actualDrop = eliminated ? target.crops : nominalDrop;
 
     target.invulnUntil = now + C.HIT_INVULN_MS;
+
+    // Getting actually hit is a stronger version of "noticed gunfire" —
+    // make sure it registers even if the shot was fired from just outside
+    // BOT_AGGRO_NOTICE_RADIUS at the moment of firing.
+    if (target.isBot && shooter && !shooter.isBot) {
+      target.aimTargetId = shooter.id;
+      target.aimUntil = now + C.BOT_AGGRO_AIM_DURATION_MS;
+      target.fleeUntil = now + C.BOT_FLEE_DURATION_MS;
+    }
 
     // Broadcast to the whole room, not just the two involved, so the red
     // "-20"/"-30" is visible to anyone nearby watching, not just the pair.

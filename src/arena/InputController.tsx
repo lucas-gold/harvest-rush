@@ -1,7 +1,6 @@
-import React from "react";
 import { Platform } from "react-native";
 import { useSettingsStore } from "../state/settingsStore";
-import { WebControls } from "./controls/WebControls";
+import { useWebControls } from "./controls/useWebControls";
 import { DragFireButtonControls } from "./controls/DragFireButtonControls";
 import { DragDistanceFireControls } from "./controls/DragDistanceFireControls";
 import { DPadFireControls } from "./controls/DPadFireControls";
@@ -9,7 +8,12 @@ import { DPadFireControls } from "./controls/DPadFireControls";
 export function InputController() {
   const controlScheme = useSettingsStore((s) => s.controlScheme);
 
-  if (Platform.OS === "web") return <WebControls />;
+  // No on-screen fire button on web — space bar or left click only.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  if (Platform.OS === "web") {
+    useWebControls();
+    return null;
+  }
 
   switch (controlScheme) {
     case "dragDistanceFire":

@@ -8,10 +8,9 @@ import { PALETTE } from "../theme/palette";
 import { PixelText } from "../theme/PixelText";
 import { BackpackStack } from "./BackpackStack";
 import { FarmField } from "./FarmField";
-import { computeZoom, isInViewport, worldToScreen } from "./camera";
+import { ZOOM, isInViewport, worldToScreen } from "./camera";
 import { PLAYER_BASE_RADIUS, directionFromVector } from "./gameMath";
-import { useSmoothedPlayers } from "./useSmoothedPlayers";
-import { useSmoothedZoom } from "./useSmoothedZoom";
+import { useArenaFrame } from "./useArenaFrame";
 
 const CROP_WORLD_SIZE = 20;
 const SEEDLING_WORLD_SIZE = 14;
@@ -19,18 +18,18 @@ const SEED_WORLD_SIZE = 10;
 const CULL_MARGIN = 80;
 const DAMAGE_NUMBER_DURATION_MS = 1100;
 const DAMAGE_NUMBER_RISE_PX = 42;
+const POOF_DURATION_MS = 320;
 
 // Only crops/seedlings within this world-space distance of the camera get
 // the full pixel-art SVG sprite (dozens of <Rect> elements each); farther
-// ones (still on screen when zoomed out, just not the focus) render as a
-// plain colored square instead. This caps the expensive-sprite count to
-// roughly a fixed number regardless of zoom or total world population —
-// a size/zoom-based threshold alone doesn't: a small/fresh player sits at
-// the *highest* zoom (see computeZoom), where crops are large enough to
-// clear almost any reasonable size threshold, so a size check alone still
-// let a full-detail viewport (measured: ~10,700 SVG shape elements at
-// once) through right when a player first connects — exactly the moment
-// that showed up as a ~370-430ms main-thread stall.
+// ones (still on screen, just not the focus) render as a plain colored
+// square instead. This caps the expensive-sprite count to roughly a fixed
+// number regardless of total world population — a size-based threshold
+// alone doesn't: at zoom, crops are large enough on screen to clear almost
+// any reasonable size threshold, so a size check alone still let a
+// full-detail viewport (measured: ~10,700 SVG shape elements at once)
+// through right when a player first connects — exactly the moment that
+// showed up as a ~370-430ms main-thread stall.
 const CROP_DETAIL_RADIUS = 260;
 const SEEDLING_DETAIL_RADIUS = 220;
 // Same idea, applied to other players: a full player is an avatar SVG plus
@@ -40,6 +39,29 @@ const SEEDLING_DETAIL_RADIUS = 220;
 // interact with them anyway) collapse to one plain colored dot. Self
 // always renders in full detail regardless of distance (there's only one).
 const PLAYER_DETAIL_RADIUS = 420;
+// Radius alone doesn't bound worst-case cost: a crowd clustered near
+// spawn can put dozens of players within PLAYER_DETAIL_RADIUS at once.
+// Capping to the nearest N (by actual distance, not render order) keeps
+// per-frame sprite count bounded regardless of how players are
+// distributed, while still preferring whoever's actually closest.
+const MAX_FULL_DETAIL_PLAYERS = 18;
+// Zoom is fixed (see ZOOM in camera.ts), but the arena itself grows up to
+// ARENA_RADIUS_REFERENCE with population, and the field is ~40% ground
+// coverage by design — a full, wide arena can still put well over a
+// thousand crop/seedling entities in view at once, each a real native
+// View even when simplified to a dot. Capping to the nearest N (like the
+// player cap above) bounds worst-case cost regardless.
+const MAX_VISIBLE_CROPS = 400;
+const MAX_VISIBLE_SEEDLINGS = 200;
+
+function nearestBy<T>(items: T[], max: number, camX: number, camY: number, getX: (t: T) => number, getY: (t: T) => number): T[] {
+  if (items.length <= max) return items;
+  return items
+    .map((item) => ({ item, d2: (getX(item) - camX) ** 2 + (getY(item) - camY) ** 2 }))
+    .sort((a, b) => a.d2 - b.d2)
+    .slice(0, max)
+    .map((e) => e.item);
+}
 
 const groundCropMatrix = buildGroundCropSprite();
 const seedlingMatrix = buildSeedlingSprite();
@@ -47,22 +69,27 @@ const seedlingMatrix = buildSeedlingSprite();
 export function ArenaCanvas() {
   const { width, height } = useWindowDimensions();
   const selfId = useArenaStore((s) => s.selfId);
-  const players = useSmoothedPlayers();
+  const { players, seeds, poofs } = useArenaFrame();
   const crops = useArenaStore((s) => s.crops);
   const cropsVersion = useArenaStore((s) => s.cropsVersion);
   const seedlings = useArenaStore((s) => s.seedlings);
   const seedlingsVersion = useArenaStore((s) => s.seedlingsVersion);
-  const seeds = useArenaStore((s) => s.seeds);
   const impacts = useArenaStore((s) => s.impacts);
   const arenaRadius = useArenaStore((s) => s.arenaRadius);
 
   const lastDirRef = useRef<Record<string, "down" | "up" | "left" | "right">>({});
+  // Prune entries for players who've since left — otherwise this grows for
+  // the lifetime of the tab, one entry per distinct player (real or bot)
+  // ever seen this session, which adds up over a long run with a lot of
+  // bot rotation.
+  for (const id in lastDirRef.current) {
+    if (!(id in players)) delete lastDirRef.current[id];
+  }
 
   const self = selfId ? players[selfId] : undefined;
-  const zoom = useSmoothedZoom(computeZoom(self?.crops ?? 0));
   const camera = useMemo(
-    () => ({ x: self?.x ?? 0, y: self?.y ?? 0, zoom }),
-    [self?.x, self?.y, zoom]
+    () => ({ x: self?.x ?? 0, y: self?.y ?? 0, zoom: ZOOM }),
+    [self?.x, self?.y]
   );
 
   const walkFrame: 0 | 1 = Math.floor(Date.now() / 150) % 2 === 0 ? 0 : 1;
@@ -80,22 +107,22 @@ export function ArenaCanvas() {
   // recomputes when the camera has actually moved meaningfully.
   const camQuantX = Math.round(camera.x / 40);
   const camQuantY = Math.round(camera.y / 40);
-  const visibleCrops = useMemo(
-    () =>
-      Object.values(crops).filter((c) => isInViewport(c.x, c.y, camera, width, height, CULL_MARGIN)),
+  const visibleCrops = useMemo(() => {
+    const inView = Object.values(crops).filter((c) =>
+      isInViewport(c.x, c.y, camera, width, height, CULL_MARGIN)
+    );
+    return nearestBy(inView, MAX_VISIBLE_CROPS, camera.x, camera.y, (c) => c.x, (c) => c.y);
     // crops is mutated in place (see arenaStore) so its reference never
     // changes — cropsVersion is the real "did this actually change" signal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cropsVersion, camQuantX, camQuantY, camera.zoom, width, height]
-  );
-  const visibleSeedlings = useMemo(
-    () =>
-      Object.values(seedlings).filter((s) =>
-        isInViewport(s.x, s.y, camera, width, height, CULL_MARGIN)
-      ),
+  }, [cropsVersion, camQuantX, camQuantY, camera.zoom, width, height]);
+  const visibleSeedlings = useMemo(() => {
+    const inView = Object.values(seedlings).filter((s) =>
+      isInViewport(s.x, s.y, camera, width, height, CULL_MARGIN)
+    );
+    return nearestBy(inView, MAX_VISIBLE_SEEDLINGS, camera.x, camera.y, (s) => s.x, (s) => s.y);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [seedlingsVersion, camQuantX, camQuantY, camera.zoom, width, height]
-  );
+  }, [seedlingsVersion, camQuantX, camQuantY, camera.zoom, width, height]);
   const visiblePlayers = useMemo(
     () =>
       Object.values(players).filter((p) => isInViewport(p.x, p.y, camera, width, height, 250)),
@@ -107,6 +134,15 @@ export function ArenaCanvas() {
     () => seeds.filter((s) => isInViewport(s.x, s.y, camera, width, height, 40)),
     [seeds, camera, width, height]
   );
+  const nearPlayerIds = useMemo(() => {
+    const withDist = visiblePlayers
+      .filter((p) => p.id !== selfId)
+      .map((p) => ({ id: p.id, d2: (p.x - camera.x) ** 2 + (p.y - camera.y) ** 2 }))
+      .filter((e) => e.d2 <= PLAYER_DETAIL_RADIUS * PLAYER_DETAIL_RADIUS)
+      .sort((a, b) => a.d2 - b.d2)
+      .slice(0, MAX_FULL_DETAIL_PLAYERS);
+    return new Set(withDist.map((e) => e.id));
+  }, [visiblePlayers, camera.x, camera.y, selfId]);
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -204,7 +240,7 @@ export function ArenaCanvas() {
         lastDirRef.current[p.id] = dir;
         const invuln = p.invulnUntil > Date.now();
         const isSelf = p.id === selfId;
-        const near = isSelf || Math.hypot(p.x - camera.x, p.y - camera.y) <= PLAYER_DETAIL_RADIUS;
+        const near = isSelf || nearPlayerIds.has(p.id);
 
         const labelWidth = 110;
         return (
@@ -258,7 +294,7 @@ export function ArenaCanvas() {
             </View>
             <View style={styles.nameRow}>
               <PixelText weight="semibold" style={styles.nameLabel} numberOfLines={1}>
-                {p.isBot ? `${p.name} (bot)` : p.name}
+                {p.name}
               </PixelText>
               <Text style={styles.nameCrops}> · {p.crops}</Text>
             </View>
@@ -274,6 +310,33 @@ export function ArenaCanvas() {
             key={s.id}
             pointerEvents="none"
             style={[styles.seedDot, { left: pos.x - size / 2, top: pos.y - size / 2, width: size, height: size, borderRadius: size / 2 }]}
+          />
+        );
+      })}
+
+      {poofs.map((pf) => {
+        const age = Date.now() - pf.at;
+        if (age >= POOF_DURATION_MS) return null;
+        const progress = age / POOF_DURATION_MS;
+        const pos = worldToScreen(pf.x, pf.y, camera, width, height);
+        // Starts small and solid, expands and fades out — a quick "plop"
+        // instead of the seed just blinking out of existence.
+        const size = (7 + progress * 20) * camera.zoom;
+        return (
+          <View
+            key={pf.id}
+            pointerEvents="none"
+            style={[
+              styles.poof,
+              {
+                left: pos.x - size / 2,
+                top: pos.y - size / 2,
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+                opacity: 1 - progress,
+              },
+            ]}
           />
         );
       })}
@@ -327,6 +390,12 @@ const styles = StyleSheet.create({
   seedDot: {
     position: "absolute",
     backgroundColor: "#e8c14a",
+    borderWidth: 1,
+    borderColor: "#8a5a1c",
+  },
+  poof: {
+    position: "absolute",
+    backgroundColor: "#c79b2e",
     borderWidth: 1,
     borderColor: "#8a5a1c",
   },

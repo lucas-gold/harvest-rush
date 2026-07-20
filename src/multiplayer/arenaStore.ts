@@ -44,15 +44,6 @@ interface ArenaState {
   playerCount: number;
   /** Bumped on every pop so the overlay can key off it even if byName repeats. */
   lastPop: { byName: string | null; finalCrops: number; at: number } | null;
-  /** Feedback for the winner of a hit — otherwise landing a shot was just
-   * the other player quietly vanishing, easy to read as "nothing happened." */
-  lastHitConfirm: {
-    targetName: string;
-    targetIsBot: boolean;
-    scattered: number;
-    eliminated: boolean;
-    at: number;
-  } | null;
   /** Recent floating "-20"/"-30" damage numbers, keyed by a unique impact
    * id (not targetId) so more than one can be in flight for the same
    * player at once. Pruned on every add rather than needing a timer. */
@@ -80,7 +71,6 @@ interface ArenaState {
   _removePlayer: (id: string) => void;
   _setPopped: (byName: string | null) => void;
   _clearPop: () => void;
-  _setHitConfirm: (hit: { targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }) => void;
   _addImpact: (impact: { targetId: string; amount: number; crit: boolean }) => void;
   _reset: () => void;
 }
@@ -98,13 +88,6 @@ const initial = {
   leaderboard: [] as LeaderboardEntry[],
   playerCount: 0,
   lastPop: null as { byName: string | null; finalCrops: number; at: number } | null,
-  lastHitConfirm: null as {
-    targetName: string;
-    targetIsBot: boolean;
-    scattered: number;
-    eliminated: boolean;
-    at: number;
-  } | null,
   impacts: [] as DamageImpact[],
 };
 
@@ -134,12 +117,21 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
     })),
 
   _applyState: (players, seeds, leaderboard, playerCount, arenaRadius) =>
-    set({
-      players: Object.fromEntries(players.map((p) => [p.id, p])),
-      seeds,
-      leaderboard,
-      playerCount,
-      arenaRadius,
+    set((s) => {
+      const next: Record<string, PlayerSnapshot> = {};
+      for (const p of players) {
+        // `p` is a fresh object from JSON.parse on every single network
+        // tick (~16.7Hz) — including `avatar`, even though avatar never
+        // actually changes after join. Left as-is, that constant identity
+        // churn defeats AvatarView's sprite-build memoization for every
+        // visible player, every tick, for no reason (nothing about the
+        // avatar ever changed). Reusing the previous reference when one
+        // exists restores that memoization at zero behavioral cost.
+        const existing = s.players[p.id];
+        if (existing) p.avatar = existing.avatar;
+        next[p.id] = p;
+      }
+      return { players: next, seeds, leaderboard, playerCount, arenaRadius };
     }),
 
   _addCrops: (crops) =>
@@ -182,8 +174,6 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
   },
 
   _clearPop: () => set({ lastPop: null }),
-
-  _setHitConfirm: (hit) => set({ lastHitConfirm: { ...hit, at: Date.now() } }),
 
   _addImpact: (impact) =>
     set((s) => {

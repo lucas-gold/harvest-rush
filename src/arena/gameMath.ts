@@ -21,10 +21,14 @@ const MAX_BUNDLES = 8;
 
 /** How many wheat bundles to show in a player's backpack pile — scaled
  * off the same growth curve as the real hitbox, so a taller pile is an
- * honest read of "how much bigger a target this player actually is." */
+ * honest read of "how much bigger a target this player actually is."
+ * The very first crop should read as "you're carrying something" right
+ * away rather than after 5 crops, so the curve is offset by one bundle
+ * as soon as crops > 0; further bundles keep the original spacing. */
 export function bundleCountForCrops(crops: number): number {
+  if (crops <= 0) return 0;
   const growth = radiusForCrops(crops) - PLAYER_BASE_RADIUS;
-  return Math.min(MAX_BUNDLES, Math.floor(growth / WORLD_UNITS_PER_BUNDLE));
+  return Math.min(MAX_BUNDLES, 1 + Math.floor(growth / WORLD_UNITS_PER_BUNDLE));
 }
 
 export function directionFromVector(dirX: number, dirY: number, fallback: Direction): Direction {

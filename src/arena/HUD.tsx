@@ -11,7 +11,6 @@ export function HUD() {
   return (
     <View style={styles.root}>
       <View style={styles.pill}>
-        <Text style={styles.cropIcon}>●</Text>
         <Text style={styles.cropCount}>{crops}</Text>
       </View>
       <View style={styles.pillSmall}>
@@ -26,13 +25,11 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
     backgroundColor: "rgba(0,0,0,0.4)",
     borderRadius: 20,
     paddingVertical: 6,
     paddingHorizontal: 14,
   },
-  cropIcon: { color: "#63d15a", fontSize: 14 },
   cropCount: { color: "#fff", fontWeight: "800", fontSize: 16 },
   pillSmall: {
     backgroundColor: "rgba(0,0,0,0.3)",

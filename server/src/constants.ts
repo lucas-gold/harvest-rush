@@ -30,7 +30,7 @@ export const SPEED_PENALTY_PER_CROP = 300; // crops to reach the full penalty
 /** Bots have no reaction time, distraction, or aiming imprecision — without
  * a handicap they out-collect any real player just by being mechanically
  * perfect. Slowing them down physically is the most direct lever. */
-export const BOT_SPEED_MULTIPLIER = 0.72;
+export const BOT_SPEED_MULTIPLIER = 0.82;
 
 /** Sizing — radius grows with the sqrt of crop count (area-proportional,
  * agar.io-style) so it doesn't blow up linearly at high scores. */
@@ -57,9 +57,16 @@ export const WORLD_ENTITY_CAP = 2200; // hard safety ceiling on crops+seedlings 
  * direction — close-ish range, not point-blank, not cross-map. */
 export const SEED_COST_CROPS = 1;
 export const FIRE_COOLDOWN_MS = 450;
-export const SEED_PROJECTILE_SPEED = 480; // world units / sec
-export const SEED_RANGE = 260; // world units
+export const SEED_PROJECTILE_SPEED = 480; // world units / sec, before easing near the end
+export const SEED_RANGE = 220; // world units
 export const SEED_HIT_RADIUS = 20; // how close a seed must pass to a player to land
+/** A seed travels at full speed until this fraction of SEED_RANGE, then
+ * eases down to SEED_MIN_SPEED_FRACTION of full speed by the time it
+ * reaches max range — a constant-velocity dart stopping dead (hit) or
+ * vanishing (miss) reads as choppy/abrupt; slowing into the landing
+ * point reads as a real object settling. */
+export const SEED_DECEL_START_FRACTION = 0.55;
+export const SEED_MIN_SPEED_FRACTION = 0.32;
 export const SEED_HIT_DROP = 20;
 export const SEED_HIT_CRIT_DROP = 30;
 export const SEED_HIT_CRIT_CHANCE = 0.04;
@@ -74,10 +81,24 @@ export const HIT_INVULN_MS = 500;
 
 /** Bots take the occasional shot too — sparse, and roughly aimed toward
  * the arena center rather than at a specific target, for a bit of ambient
- * danger without bots being real snipers. */
+ * danger without bots being real snipers. Only applies while a bot isn't
+ * aiming at a real threat (see BOT_AGGRO_* below), which takes over. */
 export const BOT_FIRE_CHECK_INTERVAL_MS = 4000;
 export const BOT_FIRE_CHANCE = 0.2; // rolled once per check interval, per bot
 export const BOT_FIRE_CENTER_BIAS = 0.5; // 0 = pure random direction, 1 = always at center
+
+/** Bots react to real players specifically: getting close makes a bot aim
+ * and fire back (a standoff — it holds its ground), while actually being
+ * shot at (hit or just a near-miss) makes it also back off for a short,
+ * capped burst before settling back into the standoff. Deliberately not a
+ * full retreat — a bot that sprints across the map the instant anyone
+ * gets close reads as "parting the red sea," not a reactive opponent. */
+export const BOT_AGGRO_APPROACH_RADIUS = 160; // a real player this close -> aim & fire, no movement change
+export const BOT_AGGRO_NOTICE_RADIUS = 240; // a real player's shot fired this close also aggros the bot
+export const BOT_AGGRO_AIM_DURATION_MS = 3000; // how long a bot keeps aiming/firing after its last trigger
+export const BOT_AGGRO_FIRE_INTERVAL_MS = 850; // faster/more assertive than ambient fire while aiming
+export const BOT_AGGRO_AIM_JITTER_RAD = (15 * Math.PI) / 180; // +/- 15 degrees — reactive, not a laser
+export const BOT_FLEE_DURATION_MS = 1100; // short "back away" burst, only from being fired at
 
 /** New players spawn with this many crops so they're not instantly helpless. */
 export const STARTING_CROPS = 0;
@@ -86,7 +107,7 @@ export const STARTING_CROPS = 0;
  * up to this many total occupants; once real players alone reach it, bots
  * are cleared out to make room. Never spawned in an otherwise-empty room. */
 export const MIN_LOBBY_POPULATION = 8;
-export const BOT_DECISION_INTERVAL_MS = 1500;
+export const BOT_DECISION_INTERVAL_MS = 1200;
 export const BOT_PERCEPTION_RADIUS = 500;
 /** A bot's next target must be at least this far away — otherwise, with
  * crops this dense, "nearest crop" is often only a few units off and bots

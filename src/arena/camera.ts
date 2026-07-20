@@ -1,13 +1,11 @@
-export const MIN_ZOOM = 0.62;
-export const MAX_ZOOM = 1.4;
-const ZOOM_CROP_SCALE = 45;
-
-/** Zoom out as the local player's stack grows — agar.io-style "you can see
- * more but you're an easier target" tradeoff. */
-export function computeZoom(crops: number): number {
-  const z = MAX_ZOOM / Math.sqrt(1 + crops / ZOOM_CROP_SCALE);
-  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
-}
+// Used to scale out as the local player's crop stack grew, agar.io-style.
+// Dropped: the avatar sprite itself never changed size (only the backpack
+// pile did, capped at MAX_BUNDLES), and seed-hit detection uses a fixed
+// SEED_HIT_RADIUS rather than the player's collision radius — so a bigger
+// stack was never actually an easier target in the current combat system,
+// and the zoom-out was pure cost (more of the world in view, more entities
+// to render) for no gameplay benefit. Zoom is just a fixed constant now.
+export const ZOOM = 1.1;
 
 export interface Camera {
   x: number;

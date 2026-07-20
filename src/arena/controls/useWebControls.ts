@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { sendInput } from "../../multiplayer/connection";
 import { directionFromDelta } from "./shared";
 
@@ -8,19 +8,15 @@ const MOVE_KEYS = new Set(["arrowleft", "arrowright", "arrowup", "arrowdown", "w
  * Web controls: every method works simultaneously, no picking one —
  * mouse position steers continuously (no click needed, true to the
  * genre), WASD/arrow keys steer too (keyboard wins over the mouse
- * whenever a movement key is actively held), and firing triggers from a
- * left click anywhere, holding space, or the on-screen fire button
- * (via the returned setButtonFiring, so all three merge into one state).
+ * whenever a movement key is actively held), and firing triggers from
+ * a left click anywhere or holding space — no on-screen button on web.
  */
 export function useWebControls() {
-  const setButtonFiringRef = useRef<(v: boolean) => void>(() => {});
-
   useEffect(() => {
     let mouseDir = { x: 0, y: 0 };
     let keyDir = { x: 0, y: 0 };
     let mouseFiring = false;
     let spaceFiring = false;
-    let buttonFiring = false;
     const keysHeld = new Set<string>();
 
     const recomputeKeyDir = () => {
@@ -36,12 +32,7 @@ export function useWebControls() {
 
     const send = () => {
       const dir = keyDir.x !== 0 || keyDir.y !== 0 ? keyDir : mouseDir;
-      sendInput(dir.x, dir.y, mouseFiring || spaceFiring || buttonFiring);
-    };
-
-    setButtonFiringRef.current = (v: boolean) => {
-      buttonFiring = v;
-      send();
+      sendInput(dir.x, dir.y, mouseFiring || spaceFiring);
     };
 
     const onMouseMove = (e: MouseEvent) => {
@@ -99,8 +90,4 @@ export function useWebControls() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, []);
-
-  return {
-    setButtonFiring: (v: boolean) => setButtonFiringRef.current(v),
-  };
 }

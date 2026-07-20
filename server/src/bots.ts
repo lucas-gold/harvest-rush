@@ -1,21 +1,10 @@
 import { AvatarCustomization } from "./protocol";
 
-// Flavor names only — bots are tagged isBot in the protocol so clients can
-// label them honestly rather than pretending they're real players.
-const BOT_NAMES = [
-  "Sprout",
-  "Clover",
-  "Pip",
-  "Barley",
-  "Hazel",
-  "Fern",
-  "Wren",
-  "Basil",
-  "Poppy",
-  "Rye",
-  "Sage",
-  "Maize",
-];
+// The ".bot" suffix is the "honestly labeled, not a real player" marker
+// (client used to append " (bot)" separately — folded into the name
+// itself instead, so it shows up identically in-arena and on the
+// leaderboard with no special-casing needed).
+const BOT_NAMES = ["sprout", "clover", "pip", "hazel", "fern", "basil", "poppy", "sage"];
 
 const SKINS: AvatarCustomization["skinTone"][] = ["skin1", "skin2", "skin3", "skin4"];
 const HAIRS: AvatarCustomization["hairColor"][] = [
@@ -36,7 +25,7 @@ function pick<T>(arr: T[]): T {
 }
 
 export function randomBotName(): string {
-  return pick(BOT_NAMES);
+  return `${pick(BOT_NAMES)}.bot`;
 }
 
 export function randomBotAvatar(): AvatarCustomization {

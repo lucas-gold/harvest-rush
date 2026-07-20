@@ -13,7 +13,10 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   return (
-    <NavigationContainer>
+    // documentTitle disabled — by default React Navigation retitles the web
+    // tab to the active screen's route name ("Entry", "Arena") as you
+    // navigate; the tab should always just read "Harvest Rush".
+    <NavigationContainer documentTitle={{ enabled: false }}>
       <Stack.Navigator
         initialRouteName="Entry"
         screenOptions={{ headerShown: false, animation: "fade" }}

@@ -10,6 +10,14 @@ import {
 } from "../pixelart/sprites";
 import { PALETTE } from "../theme/palette";
 
+const SWATCH_SIZE = 32;
+const SWATCH_GAP = 10;
+const SWATCHES_PER_ROW = 4; // skin/hair/shirt options are all exactly 4 wide
+/** Width of one option row (4 swatches + 3 gaps) — exported so other UI
+ * (the name input on EntryScreen) can match it exactly instead of
+ * guessing a number that'll drift if the swatch size ever changes. */
+export const OPTION_ROW_WIDTH = SWATCHES_PER_ROW * SWATCH_SIZE + (SWATCHES_PER_ROW - 1) * SWATCH_GAP;
+
 function Swatch({ color, selected, onPress }: { color: string; selected: boolean; onPress: () => void }) {
   return (
     <Pressable
@@ -89,10 +97,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   label: { color: "#fff", fontSize: 12, opacity: 0.8, marginTop: 2 },
-  row: { flexDirection: "row", gap: 10 },
+  row: { flexDirection: "row", gap: SWATCH_GAP, width: OPTION_ROW_WIDTH },
   swatch: {
-    width: 32,
-    height: 32,
+    width: SWATCH_SIZE,
+    height: SWATCH_SIZE,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: "transparent",

@@ -41,12 +41,10 @@ function handleMessage(msg: ServerMessage) {
       store._setPopped(msg.byName);
       break;
     case "hitConfirm":
-      store._setHitConfirm({
-        targetName: msg.targetName,
-        targetIsBot: msg.targetIsBot,
-        scattered: msg.scattered,
-        eliminated: msg.eliminated,
-      });
+      // Intentionally unused — the shooter used to get a "N crops
+      // scattered" toast here, but landing a hit is now silent; the
+      // floating "-20"/"-30" over the target (seedImpact, below) is
+      // feedback enough.
       break;
     case "seedImpact":
       store._addImpact({ targetId: msg.targetId, amount: msg.amount, crit: msg.crit });

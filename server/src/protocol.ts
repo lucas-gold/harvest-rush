@@ -40,9 +40,9 @@ export interface SeedlingSnapshot {
   plantedAt: number;
 }
 
-/** A seed in flight — short-lived (well under a second at typical range),
- * so unlike players these aren't interpolated client-side, just rendered
- * at their latest broadcast position. */
+/** A seed in flight — short-lived (well under a second at typical range).
+ * Smoothed client-side with a much shorter half-life than players so it
+ * doesn't visibly lag the server's actual (decelerating) flight path. */
 export interface SeedProjectileSnapshot {
   id: string;
   x: number;
