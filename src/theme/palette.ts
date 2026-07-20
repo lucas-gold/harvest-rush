@@ -36,6 +36,12 @@ export const PALETTE = {
   backpackBrownDark: "#5c3b1e",
   bindingBrown: "#4a2c19",
 
+  // Power-ups — a shiny blue crystal, distinct from anything else on the
+  // ground so it reads as "special" at a glance.
+  crystalBlue: "#4fc3f7",
+  crystalBlueDark: "#1976d2",
+  crystalBlueLight: "#d4f4ff",
+
   outline: "#1a140f",
   white: "#ffffff",
   shadow: "rgba(0,0,0,0.25)",

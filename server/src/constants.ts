@@ -24,7 +24,7 @@ export const TICK_MS = 60;
 /** Movement. No more speed boost (see seed combat below) — base is a
  * little higher than it was pre-removal to compensate for losing that
  * burst-speed utility entirely. */
-export const BASE_SPEED = 155;
+export const BASE_SPEED = 160; // +~3%
 export const MAX_SPEED_PENALTY = 0.4; // biggest players top out 40% slower
 export const SPEED_PENALTY_PER_CROP = 300; // crops to reach the full penalty
 /** Bots have no reaction time, distraction, or aiming imprecision — without
@@ -50,6 +50,25 @@ export const TARGET_COVERAGE_FRACTION = 0.4; // ~40% of the arena's area
 export const COVERAGE_FOOTPRINT_RADIUS = 24;
 export const SPAWN_MAX_PER_TICK = 14;
 export const WORLD_ENTITY_CAP = 2200; // hard safety ceiling on crops+seedlings combined
+
+/** Power-ups: whenever a seedling matures (the normal "a crop appears"
+ * moment), there's a small chance it's a power-up instead of a plain
+ * crop. Same pickup mechanic as a crop, distinct blue crystal look.
+ * Chances are of a maturing seedling, and are independent of each other
+ * (checked in order below, first match wins) — 0.67 + 0.25 + 0.33 = 1.25%
+ * total, ~1 in 80 maturing crops. */
+export const POWERUP_SPEED_CHANCE = 0.0067;
+export const POWERUP_RAPID_FIRE_CHANCE = 0.0025;
+export const POWERUP_SHIELD_CHANCE = 0.0033;
+export const POWERUP_MAX_ON_MAP = 6; // safety cap — rare, but shouldn't accumulate forever if left uncollected
+export const POWERUP_SPEED_MULTIPLIER = 1.5;
+export const POWERUP_SPEED_DURATION_MS = 15_000;
+export const POWERUP_RAPID_FIRE_DURATION_MS = 7_500;
+/** At least double FIRE_COOLDOWN_MS's rate — well more than double, so it
+ * reads as a real burst rather than a marginal speed-up. */
+export const POWERUP_RAPID_FIRE_COOLDOWN_MS = 180;
+// Shield has no duration — it's consumed by the next hit, however long
+// that takes, so there's no *_DURATION_MS constant for it.
 
 /** PvP: the old "ram into someone" mechanic is gone entirely, replaced by
  * seed combat. Holding the fire button (formerly boost) spends a crop per
@@ -102,6 +121,14 @@ export const BOT_FLEE_DURATION_MS = 1100; // short "back away" burst, only from 
 
 /** New players spawn with this many crops so they're not instantly helpless. */
 export const STARTING_CROPS = 0;
+
+/** Where a player/bot lands on join: a ring of the arena, not the exact
+ * center (too easy to camp/snipe across the whole map from) and not
+ * right at the boundary. See Room.pickSpawnPoint. */
+export const SPAWN_MIN_RADIUS_FRACTION = 0.2;
+export const SPAWN_MAX_RADIUS_FRACTION = 0.85;
+export const SPAWN_MIN_SEPARATION = 150; // world units from the nearest other player
+export const SPAWN_MAX_ATTEMPTS = 12;
 
 /** Bots: rooms always feel alive. Real players pull bots in to top the room
  * up to this many total occupants; once real players alone reach it, bots

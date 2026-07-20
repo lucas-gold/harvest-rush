@@ -1,9 +1,9 @@
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, useWindowDimensions } from "react-native";
 import { useArenaStore } from "../multiplayer/arenaStore";
 import { AvatarView } from "../avatar/AvatarView";
 import { PixelCanvas } from "../pixelart/PixelCanvas";
-import { buildGroundCropSprite, buildSeedlingSprite } from "../pixelart/cropSprites";
+import { buildGroundCropSprite, buildPowerUpSprite, buildSeedlingSprite } from "../pixelart/cropSprites";
 import { PALETTE } from "../theme/palette";
 import { PixelText } from "../theme/PixelText";
 import { BackpackStack } from "./BackpackStack";
@@ -15,6 +15,7 @@ import { useArenaFrame } from "./useArenaFrame";
 const CROP_WORLD_SIZE = 20;
 const SEEDLING_WORLD_SIZE = 14;
 const SEED_WORLD_SIZE = 10;
+const POWERUP_WORLD_SIZE = 26;
 const CULL_MARGIN = 80;
 const DAMAGE_NUMBER_DURATION_MS = 1100;
 const DAMAGE_NUMBER_RISE_PX = 42;
@@ -65,6 +66,7 @@ function nearestBy<T>(items: T[], max: number, camX: number, camY: number, getX:
 
 const groundCropMatrix = buildGroundCropSprite();
 const seedlingMatrix = buildSeedlingSprite();
+const powerUpMatrix = buildPowerUpSprite();
 
 export function ArenaCanvas() {
   const { width, height } = useWindowDimensions();
@@ -74,8 +76,25 @@ export function ArenaCanvas() {
   const cropsVersion = useArenaStore((s) => s.cropsVersion);
   const seedlings = useArenaStore((s) => s.seedlings);
   const seedlingsVersion = useArenaStore((s) => s.seedlingsVersion);
+  const powerUps = useArenaStore((s) => s.powerUps);
+  const powerUpsVersion = useArenaStore((s) => s.powerUpsVersion);
   const impacts = useArenaStore((s) => s.impacts);
   const arenaRadius = useArenaStore((s) => s.arenaRadius);
+
+  // The very first connect measured as a reproducible ~120-170ms main-
+  // thread stall (two back-to-back long tasks right at mount), even with
+  // the LOD caps below already in place — mounting the full-detail sprite
+  // tree (SVG avatars, backpacks, crop matrices) for everything within
+  // range, all in the same commit as the Entry->Arena screen transition,
+  // is just a lot of DOM/SVG node creation to do in one frame. Painting
+  // everything as cheap dots for the first frame and upgrading to full
+  // detail one rAF later splits that into two frames the browser can
+  // actually keep up with, instead of blocking one.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setHydrated(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   const lastDirRef = useRef<Record<string, "down" | "up" | "left" | "right">>({});
   // Prune entries for players who've since left — otherwise this grows for
@@ -123,6 +142,13 @@ export function ArenaCanvas() {
     return nearestBy(inView, MAX_VISIBLE_SEEDLINGS, camera.x, camera.y, (s) => s.x, (s) => s.y);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seedlingsVersion, camQuantX, camQuantY, camera.zoom, width, height]);
+  // Rare enough (POWERUP_MAX_ON_MAP=6) that no distance cap is needed —
+  // just cull to the viewport like everything else.
+  const visiblePowerUps = useMemo(
+    () => Object.values(powerUps).filter((pu) => isInViewport(pu.x, pu.y, camera, width, height, CULL_MARGIN)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [powerUpsVersion, camQuantX, camQuantY, camera.zoom, width, height]
+  );
   const visiblePlayers = useMemo(
     () =>
       Object.values(players).filter((p) => isInViewport(p.x, p.y, camera, width, height, 250)),
@@ -190,7 +216,7 @@ export function ArenaCanvas() {
           width: size,
           height: size,
         };
-        const near = Math.hypot(s.x - camera.x, s.y - camera.y) <= SEEDLING_DETAIL_RADIUS;
+        const near = hydrated && Math.hypot(s.x - camera.x, s.y - camera.y) <= SEEDLING_DETAIL_RADIUS;
         if (!near) {
           const dot = size * 0.55;
           return (
@@ -216,7 +242,7 @@ export function ArenaCanvas() {
           width: size,
           height: size,
         };
-        const near = Math.hypot(c.x - camera.x, c.y - camera.y) <= CROP_DETAIL_RADIUS;
+        const near = hydrated && Math.hypot(c.x - camera.x, c.y - camera.y) <= CROP_DETAIL_RADIUS;
         if (!near) {
           const dot = size * 0.6;
           return (
@@ -232,6 +258,25 @@ export function ArenaCanvas() {
         );
       })}
 
+      {visiblePowerUps.map((pu) => {
+        const pos = worldToScreen(pu.x, pu.y, camera, width, height);
+        const size = Math.max(10, POWERUP_WORLD_SIZE * camera.zoom);
+        return (
+          <View
+            key={pu.id}
+            style={{
+              position: "absolute",
+              left: pos.x - size / 2,
+              top: pos.y - size / 2,
+              width: size,
+              height: size,
+            }}
+          >
+            <PixelCanvas matrix={powerUpMatrix} size={size} />
+          </View>
+        );
+      })}
+
       {visiblePlayers.map((p) => {
         const pos = worldToScreen(p.x, p.y, camera, width, height);
         const r = PLAYER_BASE_RADIUS * camera.zoom;
@@ -240,7 +285,11 @@ export function ArenaCanvas() {
         lastDirRef.current[p.id] = dir;
         const invuln = p.invulnUntil > Date.now();
         const isSelf = p.id === selfId;
-        const near = isSelf || nearPlayerIds.has(p.id);
+        // Self always renders in full detail immediately (only one of
+        // them, and it'd be jarring to see your own character as a dot
+        // for a frame) — other players go through the same one-frame
+        // defer as crops/seedlings above.
+        const near = isSelf || (hydrated && nearPlayerIds.has(p.id));
 
         const labelWidth = 110;
         return (
@@ -255,6 +304,21 @@ export function ArenaCanvas() {
             }}
           >
             <View style={{ width: r * 2, height: r * 2, alignItems: "center", justifyContent: "center" }}>
+              {p.shielded && (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.shieldAura,
+                    {
+                      width: r * 2.7,
+                      height: r * 2.7,
+                      borderRadius: r * 1.35,
+                      left: r - r * 1.35,
+                      top: r - r * 1.35,
+                    },
+                  ]}
+                />
+              )}
               {near ? (
                 <>
                   <BackpackStack crops={p.crops} size={r * 2.4} />
@@ -425,6 +489,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
+  },
+  shieldAura: {
+    position: "absolute",
+    borderWidth: 3,
+    borderColor: "rgba(79,195,247,0.9)",
+    backgroundColor: "rgba(79,195,247,0.18)",
   },
   nameRow: {
     marginTop: 2,

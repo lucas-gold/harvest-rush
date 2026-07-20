@@ -25,6 +25,9 @@ export interface PlayerSnapshot {
   crops: number;
   invulnUntil: number;
   isBot: boolean;
+  /** Absorbs the next hit entirely (see the shield power-up); consumed
+   * on the hit it blocks. Not time-limited, unlike the other power-ups. */
+  shielded: boolean;
 }
 
 export interface CropSnapshot {
@@ -49,6 +52,18 @@ export interface SeedProjectileSnapshot {
   y: number;
 }
 
+export type PowerUpKind = "speed" | "rapidFire" | "shield";
+
+/** A power-up on the ground — same pickup mechanic as a crop (walk over
+ * it), but rare and with an effect on pickup instead of just adding to
+ * your stack. See POWERUP_* in constants.ts for odds/durations. */
+export interface PowerUpSnapshot {
+  id: string;
+  x: number;
+  y: number;
+  kind: PowerUpKind;
+}
+
 export interface LeaderboardEntry {
   id: string;
   name: string;
@@ -70,6 +85,7 @@ export type ServerMessage =
       players: PlayerSnapshot[];
       crops: CropSnapshot[];
       seedlings: SeedlingSnapshot[];
+      powerUps: PowerUpSnapshot[];
     }
   | {
       t: "state";
@@ -83,6 +99,8 @@ export type ServerMessage =
   | { t: "cropRemove"; ids: string[] }
   | { t: "seedlingSpawn"; seedlings: SeedlingSnapshot[] }
   | { t: "seedlingRemove"; ids: string[] }
+  | { t: "powerUpSpawn"; powerUps: PowerUpSnapshot[] }
+  | { t: "powerUpRemove"; ids: string[] }
   | { t: "popped"; byName: string | null }
   | { t: "hitConfirm"; targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }
   | { t: "seedImpact"; targetId: string; amount: number; crit: boolean }

@@ -3,6 +3,7 @@ import {
   CropSnapshot,
   LeaderboardEntry,
   PlayerSnapshot,
+  PowerUpSnapshot,
   SeedlingSnapshot,
   SeedProjectileSnapshot,
 } from "./protocol";
@@ -37,13 +38,18 @@ interface ArenaState {
   cropsVersion: number;
   seedlings: Record<string, SeedlingSnapshot>;
   seedlingsVersion: number;
+  // Rare (a handful on the map at most) — mutate-in-place isn't load-
+  // bearing here the way it is for crops, but the same version-counter
+  // pattern keeps every entity type consistent.
+  powerUps: Record<string, PowerUpSnapshot>;
+  powerUpsVersion: number;
   /** Seeds in flight — short-lived, so just replaced wholesale each tick
    * rather than mutated like crops/seedlings. */
   seeds: SeedProjectileSnapshot[];
   leaderboard: LeaderboardEntry[];
   playerCount: number;
   /** Bumped on every pop so the overlay can key off it even if byName repeats. */
-  lastPop: { byName: string | null; finalCrops: number; at: number } | null;
+  lastPop: { byName: string | null; at: number } | null;
   /** Recent floating "-20"/"-30" damage numbers, keyed by a unique impact
    * id (not targetId) so more than one can be in flight for the same
    * player at once. Pruned on every add rather than needing a timer. */
@@ -56,6 +62,7 @@ interface ArenaState {
     players: PlayerSnapshot[];
     crops: CropSnapshot[];
     seedlings: SeedlingSnapshot[];
+    powerUps: PowerUpSnapshot[];
   }) => void;
   _applyState: (
     players: PlayerSnapshot[],
@@ -68,6 +75,8 @@ interface ArenaState {
   _removeCrops: (ids: string[]) => void;
   _addSeedlings: (seedlings: SeedlingSnapshot[]) => void;
   _removeSeedlings: (ids: string[]) => void;
+  _addPowerUps: (powerUps: PowerUpSnapshot[]) => void;
+  _removePowerUps: (ids: string[]) => void;
   _removePlayer: (id: string) => void;
   _setPopped: (byName: string | null) => void;
   _clearPop: () => void;
@@ -84,16 +93,18 @@ const initial = {
   cropsVersion: 0,
   seedlings: {} as Record<string, SeedlingSnapshot>,
   seedlingsVersion: 0,
+  powerUps: {} as Record<string, PowerUpSnapshot>,
+  powerUpsVersion: 0,
   seeds: [] as SeedProjectileSnapshot[],
   leaderboard: [] as LeaderboardEntry[],
   playerCount: 0,
-  lastPop: null as { byName: string | null; finalCrops: number; at: number } | null,
+  lastPop: null as { byName: string | null; at: number } | null,
   impacts: [] as DamageImpact[],
 };
 
 let impactIdCounter = 0;
 
-export const useArenaStore = create<ArenaState>()((set, get) => ({
+export const useArenaStore = create<ArenaState>()((set) => ({
   ...initial,
   // Fresh objects, not the module-level `initial`'s nested ones — those
   // get mutated in place from here on (see the comment on `crops` above),
@@ -101,10 +112,11 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
   players: {},
   crops: {},
   seedlings: {},
+  powerUps: {},
 
   _setStatus: (status) => set({ status }),
 
-  _setWelcome: ({ playerId, arenaRadius, players, crops, seedlings }) =>
+  _setWelcome: ({ playerId, arenaRadius, players, crops, seedlings, powerUps }) =>
     set((s) => ({
       selfId: playerId,
       arenaRadius,
@@ -113,6 +125,8 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
       cropsVersion: s.cropsVersion + 1,
       seedlings: Object.fromEntries(seedlings.map((sd) => [sd.id, sd])),
       seedlingsVersion: s.seedlingsVersion + 1,
+      powerUps: Object.fromEntries(powerUps.map((pu) => [pu.id, pu])),
+      powerUpsVersion: s.powerUpsVersion + 1,
       status: "connected",
     })),
 
@@ -158,6 +172,18 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
       return { seedlings: s.seedlings, seedlingsVersion: s.seedlingsVersion + 1 };
     }),
 
+  _addPowerUps: (powerUps) =>
+    set((s) => {
+      for (const pu of powerUps) s.powerUps[pu.id] = pu;
+      return { powerUps: s.powerUps, powerUpsVersion: s.powerUpsVersion + 1 };
+    }),
+
+  _removePowerUps: (ids) =>
+    set((s) => {
+      for (const id of ids) delete s.powerUps[id];
+      return { powerUps: s.powerUps, powerUpsVersion: s.powerUpsVersion + 1 };
+    }),
+
   _removePlayer: (id) =>
     set((s) => {
       const players = { ...s.players };
@@ -165,13 +191,7 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
       return { players };
     }),
 
-  _setPopped: (byName) => {
-    // Read synchronously, before the next "state" message (which will have
-    // already reset crops to 0 server-side) can be processed — WS messages
-    // are handled in order, one onmessage call at a time, so this is safe.
-    const finalCrops = get().selfId ? get().players[get().selfId!]?.crops ?? 0 : 0;
-    set({ lastPop: { byName, finalCrops, at: Date.now() } });
-  },
+  _setPopped: (byName) => set({ lastPop: { byName, at: Date.now() } }),
 
   _clearPop: () => set({ lastPop: null }),
 
@@ -183,5 +203,6 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
       return { impacts: next };
     }),
 
-  _reset: () => set({ ...initial, crops: {}, seedlings: {}, players: {}, seeds: [], impacts: [] }),
+  _reset: () =>
+    set({ ...initial, crops: {}, seedlings: {}, powerUps: {}, players: {}, seeds: [], impacts: [] }),
 }));

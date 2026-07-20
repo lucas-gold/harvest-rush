@@ -70,4 +70,31 @@ export function buildBackpackSprite(): PixelMatrix {
   return m;
 }
 
+/** A power-up on the ground — a faceted blue crystal on the same soil
+ * base as a ground crop, so it reads as "part of the field" but
+ * unmistakably different at a glance. Rare enough (see POWERUP_* in
+ * server/src/constants.ts) that it always renders in full detail
+ * regardless of distance, unlike crops/seedlings. */
+export function buildPowerUpSprite(): PixelMatrix {
+  const m = blank();
+
+  fillRect(m, 4, 14, 8, 2, "soilBrown");
+
+  fillRect(m, 7, 2, 2, 2, "crystalBlueDark");
+  fillRect(m, 6, 4, 4, 2, "crystalBlueDark");
+  fillRect(m, 5, 6, 6, 2, "crystalBlueDark");
+  fillRect(m, 5, 8, 6, 2, "crystalBlueDark");
+  fillRect(m, 6, 10, 4, 2, "crystalBlueDark");
+  fillRect(m, 7, 12, 2, 2, "crystalBlueDark");
+
+  fillRect(m, 7, 4, 2, 2, "crystalBlue");
+  fillRect(m, 6, 6, 4, 4, "crystalBlue");
+  fillRect(m, 7, 10, 2, 2, "crystalBlue");
+
+  fillRect(m, 6, 6, 1, 2, "crystalBlueLight");
+  fillRect(m, 7, 5, 1, 1, "crystalBlueLight");
+
+  return m;
+}
+
 export const CROP_SPRITE_GRID = GRID;

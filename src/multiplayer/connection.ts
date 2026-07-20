@@ -34,6 +34,12 @@ function handleMessage(msg: ServerMessage) {
     case "seedlingRemove":
       store._removeSeedlings(msg.ids);
       break;
+    case "powerUpSpawn":
+      store._addPowerUps(msg.powerUps);
+      break;
+    case "powerUpRemove":
+      store._removePowerUps(msg.ids);
+      break;
     case "playerLeft":
       store._removePlayer(msg.id);
       break;

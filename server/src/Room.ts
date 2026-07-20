@@ -10,6 +10,8 @@ import {
   CropSnapshot,
   SeedlingSnapshot,
   SeedProjectileSnapshot,
+  PowerUpKind,
+  PowerUpSnapshot,
   LeaderboardEntry,
 } from "./protocol";
 
@@ -41,6 +43,12 @@ interface InternalPlayer {
   aimTargetId: string | null;
   aimUntil: number;
   fleeUntil: number;
+  // power-up state — see POWERUP_* in constants.ts. speedBoostUntil/
+  // rapidFireUntil are 0 when inactive; shielded is a plain flag since
+  // it's consumed by a hit rather than expiring on a timer.
+  speedBoostUntil: number;
+  rapidFireUntil: number;
+  shielded: boolean;
 }
 
 interface InternalCrop {
@@ -66,6 +74,13 @@ interface InternalSeedProjectile {
   traveled: number;
 }
 
+interface InternalPowerUp {
+  id: string;
+  x: number;
+  y: number;
+  kind: PowerUpKind;
+}
+
 export class Room {
   readonly id: string;
   private players = new Map<string, InternalPlayer>();
@@ -76,6 +91,7 @@ export class Room {
   private cropGrid = new SpatialGrid<InternalCrop>(120);
   private seedlings = new Map<string, InternalSeedling>();
   private seeds = new Map<string, InternalSeedProjectile>();
+  private powerUps = new Map<string, InternalPowerUp>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
   // Recomputed on join/leave from realPlayerCount() alone — bots always
@@ -91,6 +107,8 @@ export class Room {
   private pendingCropRemove: string[] = [];
   private pendingSeedlingSpawn: SeedlingSnapshot[] = [];
   private pendingSeedlingRemove: string[] = [];
+  private pendingPowerUpSpawn: PowerUpSnapshot[] = [];
+  private pendingPowerUpRemove: string[] = [];
 
   constructor(id: string) {
     this.id = id;
@@ -173,12 +191,15 @@ export class Room {
       aimTargetId: null,
       aimUntil: 0,
       fleeUntil: 0,
+      speedBoostUntil: 0,
+      rapidFireUntil: 0,
+      shielded: false,
     };
     this.players.set(id, player);
     this.recomputeArenaRadius();
     this.rebalanceBots();
 
-    const spawn = randomPointInCircle(this.arenaRadius * 0.6);
+    const spawn = this.pickSpawnPoint(id);
     player.x = spawn.x;
     player.y = spawn.y;
     player.botTargetX = spawn.x;
@@ -192,9 +213,39 @@ export class Room {
       players: [...this.players.values()].map(this.toSnapshot),
       crops: [...this.crops.values()],
       seedlings: [...this.seedlings.values()],
+      powerUps: [...this.powerUps.values()],
     };
     this.send(player, welcome);
     return id;
+  }
+
+  /** A spawn point in the ring between SPAWN_MIN/MAX_RADIUS_FRACTION (not
+   * dead center, not right at the boundary), preferring whichever
+   * candidate ends up farthest from every other current player — so
+   * joining doesn't routinely drop you on top of someone, especially
+   * right at room creation when several bots spawn back to back. */
+  private pickSpawnPoint(excludeId?: string): { x: number; y: number } {
+    const minR = this.arenaRadius * C.SPAWN_MIN_RADIUS_FRACTION;
+    const maxR = this.arenaRadius * C.SPAWN_MAX_RADIUS_FRACTION;
+    let best: { x: number; y: number } | null = null;
+    let bestMinDist = -1;
+    for (let attempt = 0; attempt < C.SPAWN_MAX_ATTEMPTS; attempt++) {
+      const r = Math.sqrt(minR * minR + Math.random() * (maxR * maxR - minR * minR));
+      const theta = Math.random() * Math.PI * 2;
+      const candidate = { x: Math.cos(theta) * r, y: Math.sin(theta) * r };
+      let minDist = Infinity;
+      for (const p of this.players.values()) {
+        if (p.id === excludeId) continue;
+        const d = Math.hypot(p.x - candidate.x, p.y - candidate.y);
+        if (d < minDist) minDist = d;
+      }
+      if (minDist >= C.SPAWN_MIN_SEPARATION) return candidate;
+      if (minDist > bestMinDist) {
+        bestMinDist = minDist;
+        best = candidate;
+      }
+    }
+    return best ?? { x: 0, y: 0 };
   }
 
   leave(id: string) {
@@ -249,6 +300,12 @@ export class Room {
         this.pendingSeedlingRemove.push(s.id);
       }
     }
+    for (const pu of this.powerUps.values()) {
+      if (pu.x * pu.x + pu.y * pu.y > r2) {
+        this.powerUps.delete(pu.id);
+        this.pendingPowerUpRemove.push(pu.id);
+      }
+    }
   }
 
   // ---- bots ----
@@ -268,7 +325,7 @@ export class Room {
 
   private spawnBot() {
     const id = randomId("bot");
-    const spawn = randomPointInCircle(this.arenaRadius * 0.6);
+    const spawn = this.pickSpawnPoint();
     const bot: InternalPlayer = {
       id,
       ws: null,
@@ -292,6 +349,9 @@ export class Room {
       aimTargetId: null,
       aimUntil: 0,
       fleeUntil: 0,
+      speedBoostUntil: 0,
+      rapidFireUntil: 0,
+      shielded: false,
     };
     this.players.set(id, bot);
   }
@@ -479,6 +539,7 @@ export class Room {
     crops: p.crops,
     invulnUntil: p.invulnUntil,
     isBot: p.isBot,
+    shielded: p.shielded,
   });
 
   private send(p: InternalPlayer, msg: ServerMessage) {
@@ -500,9 +561,10 @@ export class Room {
 
     this.updateBots(now);
     this.updateBotFiring(now);
-    this.updateMovement(dt);
+    this.updateMovement(now, dt);
     this.handlePlayerFiring(now);
     this.handleCropPickups();
+    this.handlePowerUpPickups(now);
     this.updateSeedlings(now);
     this.spawnAmbientSeedlings();
     this.updateSeedProjectiles(now, dt);
@@ -513,15 +575,16 @@ export class Room {
     return C.PLAYER_BASE_RADIUS + Math.sqrt(Math.max(0, crops)) * C.PLAYER_RADIUS_PER_SQRT_CROP;
   }
 
-  private speedFor(p: InternalPlayer) {
+  private speedFor(p: InternalPlayer, now: number) {
     const penalty = Math.min(C.MAX_SPEED_PENALTY, p.crops / C.SPEED_PENALTY_PER_CROP);
-    const speed = C.BASE_SPEED * (1 - penalty);
+    let speed = C.BASE_SPEED * (1 - penalty);
+    if (now < p.speedBoostUntil) speed *= C.POWERUP_SPEED_MULTIPLIER;
     return p.isBot ? speed * C.BOT_SPEED_MULTIPLIER : speed;
   }
 
-  private updateMovement(dt: number) {
+  private updateMovement(now: number, dt: number) {
     for (const p of this.players.values()) {
-      const speed = this.speedFor(p);
+      const speed = this.speedFor(p, now);
       if (p.dirX !== 0 || p.dirY !== 0) {
         p.x += p.dirX * speed * dt;
         p.y += p.dirY * speed * dt;
@@ -539,17 +602,24 @@ export class Room {
 
   private handlePlayerFiring(now: number) {
     for (const p of this.players.values()) {
-      if (p.isBot || !p.firing) continue;
+      if (p.isBot) continue;
+      // Rapid fire shoots on its own — you don't need to be holding the
+      // button for it to keep firing.
+      if (!p.firing && now >= p.rapidFireUntil) continue;
       this.tryFire(p, now, p.facingX, p.facingY);
     }
   }
 
   private tryFire(p: InternalPlayer, now: number, dirX: number, dirY: number) {
     if (dirX === 0 && dirY === 0) return;
-    if (p.crops < C.SEED_COST_CROPS) return;
-    if (now - p.lastFireAt < C.FIRE_COOLDOWN_MS) return;
+    const rapid = now < p.rapidFireUntil;
+    const cooldown = rapid ? C.POWERUP_RAPID_FIRE_COOLDOWN_MS : C.FIRE_COOLDOWN_MS;
+    if (now - p.lastFireAt < cooldown) return;
+    if (!rapid) {
+      if (p.crops < C.SEED_COST_CROPS) return;
+      p.crops -= C.SEED_COST_CROPS;
+    }
     p.lastFireAt = now;
-    p.crops -= C.SEED_COST_CROPS;
     const seed: InternalSeedProjectile = {
       id: randomId("seed"),
       x: p.x,
@@ -615,6 +685,17 @@ export class Room {
 
   private resolveSeedHit(seed: InternalSeedProjectile, target: InternalPlayer, now: number) {
     const shooter = this.players.get(seed.ownerId) ?? null;
+
+    // A shield absorbs the hit entirely — no crop loss, no elimination —
+    // and is consumed. Still grants the usual hit-invuln window so the
+    // now-unshielded target isn't immediately re-hit by a second seed
+    // arriving the same tick.
+    if (target.shielded) {
+      target.shielded = false;
+      target.invulnUntil = now + C.HIT_INVULN_MS;
+      return;
+    }
+
     const crit = Math.random() < C.SEED_HIT_CRIT_CHANCE;
     const nominalDrop = crit ? C.SEED_HIT_CRIT_DROP : C.SEED_HIT_DROP;
     const eliminated = target.crops < nominalDrop;
@@ -686,10 +767,55 @@ export class Room {
       if (now - s.plantedAt >= C.SEEDLING_GROW_MS) {
         this.seedlings.delete(s.id);
         this.pendingSeedlingRemove.push(s.id);
-        const crop: InternalCrop = { id: randomId("cr"), x: s.x, y: s.y };
-        this.addCrop(crop);
-        this.pendingCropSpawn.push(crop);
+
+        const powerUpKind = this.rollPowerUpKind();
+        if (powerUpKind && this.powerUps.size < C.POWERUP_MAX_ON_MAP) {
+          const powerUp: InternalPowerUp = { id: randomId("pu"), x: s.x, y: s.y, kind: powerUpKind };
+          this.powerUps.set(powerUp.id, powerUp);
+          this.pendingPowerUpSpawn.push(powerUp);
+        } else {
+          const crop: InternalCrop = { id: randomId("cr"), x: s.x, y: s.y };
+          this.addCrop(crop);
+          this.pendingCropSpawn.push(crop);
+        }
       }
+    }
+  }
+
+  /** A maturing seedling is a plain crop the overwhelming majority of the
+   * time — see POWERUP_*_CHANCE in constants.ts for the (small,
+   * independent) odds of each kind instead. */
+  private rollPowerUpKind(): PowerUpKind | null {
+    const roll = Math.random();
+    if (roll < C.POWERUP_SPEED_CHANCE) return "speed";
+    if (roll < C.POWERUP_SPEED_CHANCE + C.POWERUP_RAPID_FIRE_CHANCE) return "rapidFire";
+    if (roll < C.POWERUP_SPEED_CHANCE + C.POWERUP_RAPID_FIRE_CHANCE + C.POWERUP_SHIELD_CHANCE) return "shield";
+    return null;
+  }
+
+  /** Same walk-over pickup mechanic as a crop (see handleCropPickups), but
+   * power-ups are rare enough that a spatial grid would be overkill — a
+   * plain per-tick scan against however few are on the map is cheap. */
+  private handlePowerUpPickups(now: number) {
+    if (this.powerUps.size === 0) return;
+    for (const p of this.players.values()) {
+      const r = this.radiusFor(p.crops);
+      for (const powerUp of this.powerUps.values()) {
+        if (dist2(p.x, p.y, powerUp.x, powerUp.y) > r * r) continue;
+        this.powerUps.delete(powerUp.id);
+        this.pendingPowerUpRemove.push(powerUp.id);
+        this.applyPowerUp(p, powerUp.kind, now);
+      }
+    }
+  }
+
+  private applyPowerUp(p: InternalPlayer, kind: PowerUpKind, now: number) {
+    if (kind === "speed") {
+      p.speedBoostUntil = now + C.POWERUP_SPEED_DURATION_MS;
+    } else if (kind === "rapidFire") {
+      p.rapidFireUntil = now + C.POWERUP_RAPID_FIRE_DURATION_MS;
+    } else {
+      p.shielded = true;
     }
   }
 
@@ -783,6 +909,14 @@ export class Room {
     if (this.pendingSeedlingRemove.length) {
       this.broadcast({ t: "seedlingRemove", ids: this.pendingSeedlingRemove });
       this.pendingSeedlingRemove = [];
+    }
+    if (this.pendingPowerUpSpawn.length) {
+      this.broadcast({ t: "powerUpSpawn", powerUps: this.pendingPowerUpSpawn });
+      this.pendingPowerUpSpawn = [];
+    }
+    if (this.pendingPowerUpRemove.length) {
+      this.broadcast({ t: "powerUpRemove", ids: this.pendingPowerUpRemove });
+      this.pendingPowerUpRemove = [];
     }
   }
 }

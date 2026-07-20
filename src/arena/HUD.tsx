@@ -23,14 +23,15 @@ export function HUD() {
 const styles = StyleSheet.create({
   root: { gap: 6 },
   pill: {
-    flexDirection: "row",
+    minWidth: 44,
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.4)",
     borderRadius: 20,
     paddingVertical: 6,
     paddingHorizontal: 14,
   },
-  cropCount: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  cropCount: { color: "#fff", fontWeight: "800", fontSize: 16, textAlign: "center" },
   pillSmall: {
     backgroundColor: "rgba(0,0,0,0.3)",
     borderRadius: 12,

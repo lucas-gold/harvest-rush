@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Pressable, StyleSheet, Modal } from "react-native";
+import { View, Pressable, StyleSheet, Modal } from "react-native";
 import * as Haptics from "expo-haptics";
 import { PixelText } from "../theme/PixelText";
 import { useArenaStore } from "../multiplayer/arenaStore";
@@ -39,16 +39,6 @@ export function PopOverlay({ onPlayAgain, onExit }: Props) {
           <PixelText weight="semibold" style={styles.subtitle}>
             {lastPop.byName ? `${lastPop.byName} shot you down.` : "Better luck next run."}
           </PixelText>
-          <View style={styles.statRow}>
-            <PixelText weight="semibold" style={styles.statLabel}>
-              Final stack:{" "}
-            </PixelText>
-            <Text style={styles.statNumber}>{lastPop.finalCrops}</Text>
-            <PixelText weight="semibold" style={styles.statLabel}>
-              {" "}
-              crops
-            </PixelText>
-          </View>
           <Pressable style={styles.button} onPress={() => dismiss(onPlayAgain)}>
             <PixelText style={styles.buttonText}>Play Again</PixelText>
           </Pressable>
@@ -79,9 +69,6 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 24, color: "#3a2010" },
   subtitle: { fontSize: 13, color: "#3a2010", marginTop: 6, textAlign: "center" },
-  statRow: { flexDirection: "row", marginTop: 10, alignItems: "baseline" },
-  statLabel: { fontSize: 14, color: "#3a2010" },
-  statNumber: { fontSize: 16, fontWeight: "800", color: "#3a2010" },
   button: {
     backgroundColor: "#4caf50",
     paddingVertical: 12,
