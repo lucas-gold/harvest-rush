@@ -34,7 +34,7 @@ export function AvatarPicker() {
   return (
     <View style={styles.root}>
       <View style={styles.preview}>
-        <AvatarView customization={customization} size={96} />
+        <AvatarView customization={customization} size={96} armsLevel />
       </View>
 
       <PixelText weight="semibold" style={styles.label}>Skin</PixelText>

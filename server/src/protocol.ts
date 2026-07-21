@@ -101,6 +101,7 @@ export type ServerMessage =
   | { t: "seedlingRemove"; ids: string[] }
   | { t: "powerUpSpawn"; powerUps: PowerUpSnapshot[] }
   | { t: "powerUpRemove"; ids: string[] }
+  | { t: "powerUpPickup"; kind: PowerUpKind }
   | { t: "popped"; byName: string | null }
   | { t: "hitConfirm"; targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }
   | { t: "seedImpact"; targetId: string; amount: number; crit: boolean }

@@ -360,12 +360,13 @@ export class Room {
     for (const p of this.players.values()) {
       if (!p.isBot) continue;
 
-      // A real player just standing nearby is enough to make a bot aim
-      // and fire back (a standoff), even without ever having been shot at.
+      // Anyone (bot or real player) just standing nearby is enough to
+      // make a bot aim and fire back (a standoff), even without ever
+      // having been shot at.
       if (!p.aimTargetId || now >= p.aimUntil) {
-        const nearestReal = this.nearestRealPlayerWithin(p, C.BOT_AGGRO_APPROACH_RADIUS);
-        if (nearestReal) {
-          p.aimTargetId = nearestReal.id;
+        const nearestThreat = this.nearestOtherPlayerWithin(p, C.BOT_AGGRO_APPROACH_RADIUS);
+        if (nearestThreat) {
+          p.aimTargetId = nearestThreat.id;
           p.aimUntil = now + C.BOT_AGGRO_AIM_DURATION_MS;
         }
       }
@@ -427,17 +428,27 @@ export class Room {
     }
   }
 
-  /** Nearest non-bot player within `radius`, or null — used to trigger a
-   * bot's defensive aim/fire when a real player gets close. */
-  private nearestRealPlayerWithin(p: InternalPlayer, radius: number): InternalPlayer | null {
+  /** Nearest other player (bot or real) within `radius`, or null — used
+   * to trigger a bot's defensive aim/fire when anyone gets close. Bots
+   * react to bots the same way they react to real players, but with a
+   * bias toward real players when both are around: a real player's
+   * distance is scaled down (BOT_TARGET_PLAYER_BIAS) for comparison
+   * purposes, so a nearby real player usually wins the pick over a
+   * similarly-close bot — but a bot that's dramatically closer can still
+   * win. A bias, not an absolute rule; still gated on the real
+   * (unscaled) distance being within `radius` at all. */
+  private nearestOtherPlayerWithin(p: InternalPlayer, radius: number): InternalPlayer | null {
+    const r2 = radius * radius;
     let best: InternalPlayer | null = null;
-    let bestD2 = radius * radius;
+    let bestScore = Infinity;
     for (const other of this.players.values()) {
-      if (other.isBot || other.id === p.id) continue;
+      if (other.id === p.id) continue;
       const d2 = dist2(p.x, p.y, other.x, other.y);
-      if (d2 <= bestD2) {
+      if (d2 > r2) continue;
+      const score = other.isBot ? d2 : d2 * C.BOT_TARGET_PLAYER_BIAS;
+      if (score < bestScore) {
         best = other;
-        bestD2 = d2;
+        bestScore = score;
       }
     }
     return best;
@@ -497,15 +508,27 @@ export class Room {
     return { x: Math.cos(angle), y: Math.sin(angle) };
   }
 
-  /** A real player firing anywhere near a bot is enough for that bot to
-   * notice and react — aim back, and back off a short, capped distance —
-   * whether or not the shot actually lands (see resolveSeedHit for the
-   * "actually got hit" case, which triggers the same reaction). */
+  /** Anyone firing anywhere near a bot — another bot or a real player —
+   * is enough for that bot to notice and react — aim back, and back off
+   * a short, capped distance — whether or not the shot actually lands
+   * (see resolveSeedHit for the "actually got hit" case, which triggers
+   * the same reaction).
+   *
+   * A real player's shot always registers. A bot's shot doesn't override
+   * another bot that's already actively engaged with a real player —
+   * without this, two nearby bots that both fire at a real player end up
+   * alerting each other back and forth every time either one shoots,
+   * repeatedly yanking their aim onto each other and defeating the
+   * real-player targeting bias in nearestOtherPlayerWithin entirely. */
   private alertNearbyBots(shooter: InternalPlayer, now: number) {
     const r2 = C.BOT_AGGRO_NOTICE_RADIUS * C.BOT_AGGRO_NOTICE_RADIUS;
     for (const bot of this.players.values()) {
-      if (!bot.isBot) continue;
+      if (!bot.isBot || bot.id === shooter.id) continue;
       if (dist2(bot.x, bot.y, shooter.x, shooter.y) > r2) continue;
+      if (shooter.isBot) {
+        const currentTarget = bot.aimTargetId ? this.players.get(bot.aimTargetId) : undefined;
+        if (currentTarget && !currentTarget.isBot && now < bot.aimUntil) continue;
+      }
       bot.aimTargetId = shooter.id;
       bot.aimUntil = now + C.BOT_AGGRO_AIM_DURATION_MS;
       bot.fleeUntil = now + C.BOT_FLEE_DURATION_MS;
@@ -630,7 +653,9 @@ export class Room {
       traveled: 0,
     };
     this.seeds.set(seed.id, seed);
-    if (!p.isBot) this.alertNearbyBots(p, now);
+    // Any shot alerts nearby bots — a bot's own shot alerts other bots
+    // just like a real player's would (see alertNearbyBots).
+    this.alertNearbyBots(p, now);
   }
 
   private updateSeedProjectiles(now: number, dt: number) {
@@ -705,8 +730,9 @@ export class Room {
 
     // Getting actually hit is a stronger version of "noticed gunfire" —
     // make sure it registers even if the shot was fired from just outside
-    // BOT_AGGRO_NOTICE_RADIUS at the moment of firing.
-    if (target.isBot && shooter && !shooter.isBot) {
+    // BOT_AGGRO_NOTICE_RADIUS at the moment of firing. Applies whether
+    // the shooter was a bot or a real player.
+    if (target.isBot && shooter && shooter.id !== target.id) {
       target.aimTargetId = shooter.id;
       target.aimUntil = now + C.BOT_AGGRO_AIM_DURATION_MS;
       target.fleeUntil = now + C.BOT_FLEE_DURATION_MS;
@@ -762,22 +788,39 @@ export class Room {
     }
   }
 
+  /** Ambient planting is capped per tick (SPAWN_MAX_PER_TICK) so a big
+   * deficit fills in gradually instead of all at once — but maturing back
+   * out had no equivalent cap, so a burst of seedlings planted close
+   * together (e.g. several real/bot players eating through the field at
+   * once right after connecting) would all mature in the very same tick:
+   * one broadcast, one render, with potentially dozens of brand-new crops
+   * mounting for the first time simultaneously. Capping maturation the
+   * same way spreads that out too. Oldest-planted matures first so nothing
+   * waits indefinitely behind newer plantings. */
   private updateSeedlings(now: number) {
+    let ready: InternalSeedling[] | null = null;
     for (const s of this.seedlings.values()) {
-      if (now - s.plantedAt >= C.SEEDLING_GROW_MS) {
-        this.seedlings.delete(s.id);
-        this.pendingSeedlingRemove.push(s.id);
+      if (now - s.plantedAt < C.SEEDLING_GROW_MS) continue;
+      (ready ??= []).push(s);
+    }
+    if (!ready) return;
+    if (ready.length > C.SEEDLING_MATURE_MAX_PER_TICK) {
+      ready.sort((a, b) => a.plantedAt - b.plantedAt);
+      ready.length = C.SEEDLING_MATURE_MAX_PER_TICK;
+    }
+    for (const s of ready) {
+      this.seedlings.delete(s.id);
+      this.pendingSeedlingRemove.push(s.id);
 
-        const powerUpKind = this.rollPowerUpKind();
-        if (powerUpKind && this.powerUps.size < C.POWERUP_MAX_ON_MAP) {
-          const powerUp: InternalPowerUp = { id: randomId("pu"), x: s.x, y: s.y, kind: powerUpKind };
-          this.powerUps.set(powerUp.id, powerUp);
-          this.pendingPowerUpSpawn.push(powerUp);
-        } else {
-          const crop: InternalCrop = { id: randomId("cr"), x: s.x, y: s.y };
-          this.addCrop(crop);
-          this.pendingCropSpawn.push(crop);
-        }
+      const powerUpKind = this.rollPowerUpKind();
+      if (powerUpKind && this.powerUps.size < C.POWERUP_MAX_ON_MAP) {
+        const powerUp: InternalPowerUp = { id: randomId("pu"), x: s.x, y: s.y, kind: powerUpKind };
+        this.powerUps.set(powerUp.id, powerUp);
+        this.pendingPowerUpSpawn.push(powerUp);
+      } else {
+        const crop: InternalCrop = { id: randomId("cr"), x: s.x, y: s.y };
+        this.addCrop(crop);
+        this.pendingCropSpawn.push(crop);
       }
     }
   }
@@ -817,6 +860,9 @@ export class Room {
     } else {
       p.shielded = true;
     }
+    // Bots don't have a socket (send() no-ops for them), but this is
+    // purely feedback for whoever picked it up, not something bots need.
+    if (!p.isBot) this.send(p, { t: "powerUpPickup", kind });
   }
 
   /** Target entity count is ~TARGET_COVERAGE_FRACTION of the arena's area,

@@ -21,18 +21,15 @@ const DAMAGE_NUMBER_DURATION_MS = 1100;
 const DAMAGE_NUMBER_RISE_PX = 42;
 const POOF_DURATION_MS = 320;
 
-// Only crops/seedlings within this world-space distance of the camera get
-// the full pixel-art SVG sprite (dozens of <Rect> elements each); farther
-// ones (still on screen, just not the focus) render as a plain colored
-// square instead. This caps the expensive-sprite count to roughly a fixed
-// number regardless of total world population — a size-based threshold
-// alone doesn't: at zoom, crops are large enough on screen to clear almost
-// any reasonable size threshold, so a size check alone still let a
-// full-detail viewport (measured: ~10,700 SVG shape elements at once)
-// through right when a player first connects — exactly the moment that
-// showed up as a ~370-430ms main-thread stall.
-const CROP_DETAIL_RADIUS = 260;
-const SEEDLING_DETAIL_RADIUS = 220;
+// Crops/seedlings used to fall back to a plain colored dot beyond a
+// fixed radius, on top of the MAX_VISIBLE_CROPS/SEEDLINGS caps below —
+// originally needed because a full-detail viewport measured ~10,700 SVG
+// shapes at once (a ~370-430ms stall). That's no longer true: once
+// PixelCanvas's memoization actually held (stable zoom, stable sprite
+// matrices — see useArenaFrame and AvatarView) and the count caps landed,
+// measured full-detail-everywhere ran no worse than the radius-limited
+// version under the same load. Dropped the distance check entirely; the
+// count caps alone now bound worst-case cost.
 // Same idea, applied to other players: a full player is an avatar SVG plus
 // a backpack base plus up to MAX_BUNDLES more SVGs for a big one — up to
 // ~10 sprite instances each, and with up to 40 players that's the single
@@ -216,7 +213,7 @@ export function ArenaCanvas() {
           width: size,
           height: size,
         };
-        const near = hydrated && Math.hypot(s.x - camera.x, s.y - camera.y) <= SEEDLING_DETAIL_RADIUS;
+        const near = hydrated;
         if (!near) {
           const dot = size * 0.55;
           return (
@@ -242,7 +239,7 @@ export function ArenaCanvas() {
           width: size,
           height: size,
         };
-        const near = hydrated && Math.hypot(c.x - camera.x, c.y - camera.y) <= CROP_DETAIL_RADIUS;
+        const near = hydrated;
         if (!near) {
           const dot = size * 0.6;
           return (
@@ -436,9 +433,10 @@ export function ArenaCanvas() {
 }
 
 const styles = StyleSheet.create({
-  // Distant crops/seedlings simplify to these — small, round, and
-  // slightly translucent so they read as "not quite in focus yet" rather
-  // than a bright, out-of-place shape.
+  // Only shown for the single not-yet-hydrated first frame after connect
+  // (see `hydrated` above) — small, round, and slightly translucent so
+  // it reads as "not quite in focus yet" rather than a bright shape,
+  // then swaps to the real sprite one frame later.
   cropDot: {
     backgroundColor: PALETTE.wheatGold,
     opacity: 0.8,

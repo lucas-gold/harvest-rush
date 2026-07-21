@@ -41,7 +41,12 @@ export const SHIRT_OPTIONS: AvatarCustomization["shirtColor"][] = [
 export function buildAvatarSprite(
   direction: Direction,
   walkFrame: 0 | 1,
-  custom: AvatarCustomization
+  custom: AvatarCustomization,
+  // The walk cycle deliberately staggers the arms (one up, one down) for
+  // a mid-stride look — correct while moving, but wrong for a static
+  // preview (the avatar picker), where a stride pose just reads as
+  // lopsided. Forces both arms to the same height instead.
+  armsLevel: boolean = false
 ): PixelMatrix {
   const m = blank();
   const facingSide = direction === "left" || direction === "right";
@@ -83,10 +88,13 @@ export function buildAvatarSprite(
   // Torso / shirt
   fillRect(m, 4, 8, 8, 4, custom.shirtColor);
 
-  // Arms (skin), swap for walk animation
+  // Arms (skin), swap for walk animation — unless armsLevel forces both
+  // to the same height.
   const armUp = walkFrame === 0;
-  fillRect(m, 2, armUp ? 8 : 9, 2, 3, custom.skinTone);
-  fillRect(m, 12, armUp ? 9 : 8, 2, 3, custom.skinTone);
+  const leftArmY = armsLevel ? 8 : armUp ? 8 : 9;
+  const rightArmY = armsLevel ? 8 : armUp ? 9 : 8;
+  fillRect(m, 2, leftArmY, 2, 3, custom.skinTone);
+  fillRect(m, 12, rightArmY, 2, 3, custom.skinTone);
 
   // Legs, offset per walk frame for a simple stride
   const leftLegX = walkFrame === 0 ? 5 : 6;

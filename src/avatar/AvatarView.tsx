@@ -8,11 +8,21 @@ interface Props {
   size: number;
   direction?: Direction;
   walkFrame?: 0 | 1;
+  /** Forces both arms to the same height — the walk cycle's stride pose
+   * (one arm up, one down) is correct in motion but reads as lopsided in
+   * a static preview like the avatar picker. */
+  armsLevel?: boolean;
 }
 
 /** The single source of truth for "what does this player look like" —
  * used identically in the avatar picker preview and in-arena rendering. */
-export function AvatarView({ customization, size, direction = "down", walkFrame = 0 }: Props) {
+export function AvatarView({
+  customization,
+  size,
+  direction = "down",
+  walkFrame = 0,
+  armsLevel = false,
+}: Props) {
   // Was rebuilt unconditionally on every render — with up to 18 visible
   // players re-rendering at ~25fps, that's a full pixel-matrix rebuild
   // (every cell, every filled color) happening hundreds of times a second
@@ -21,8 +31,8 @@ export function AvatarView({ customization, size, direction = "down", walkFrame 
   // this exact matrix reference, so a stable matrix here is what actually
   // lets that memoization do anything.
   const matrix = useMemo(
-    () => buildAvatarSprite(direction, walkFrame, customization),
-    [direction, walkFrame, customization]
+    () => buildAvatarSprite(direction, walkFrame, customization, armsLevel),
+    [direction, walkFrame, customization, armsLevel]
   );
   return (
     <View style={{ width: size, height: size, pointerEvents: "none" }}>

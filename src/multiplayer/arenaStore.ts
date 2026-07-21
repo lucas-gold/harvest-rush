@@ -3,6 +3,7 @@ import {
   CropSnapshot,
   LeaderboardEntry,
   PlayerSnapshot,
+  PowerUpKind,
   PowerUpSnapshot,
   SeedlingSnapshot,
   SeedProjectileSnapshot,
@@ -54,6 +55,9 @@ interface ArenaState {
    * id (not targetId) so more than one can be in flight for the same
    * player at once. Pruned on every add rather than needing a timer. */
   impacts: DamageImpact[];
+  /** Bumped on every power-up pickup (self only) so PowerUpToast can key
+   * off it even if the same kind is picked up twice in a row. */
+  lastPowerUpPickup: { kind: PowerUpKind; at: number } | null;
 
   _setStatus: (status: ConnectionStatus) => void;
   _setWelcome: (payload: {
@@ -81,6 +85,7 @@ interface ArenaState {
   _setPopped: (byName: string | null) => void;
   _clearPop: () => void;
   _addImpact: (impact: { targetId: string; amount: number; crit: boolean }) => void;
+  _setPowerUpPickup: (kind: PowerUpKind) => void;
   _reset: () => void;
 }
 
@@ -100,6 +105,7 @@ const initial = {
   playerCount: 0,
   lastPop: null as { byName: string | null; at: number } | null,
   impacts: [] as DamageImpact[],
+  lastPowerUpPickup: null as { kind: PowerUpKind; at: number } | null,
 };
 
 let impactIdCounter = 0;
@@ -202,6 +208,8 @@ export const useArenaStore = create<ArenaState>()((set) => ({
       next.push({ ...impact, id: `imp${impactIdCounter++}`, at: now });
       return { impacts: next };
     }),
+
+  _setPowerUpPickup: (kind) => set({ lastPowerUpPickup: { kind, at: Date.now() } }),
 
   _reset: () =>
     set({ ...initial, crops: {}, seedlings: {}, powerUps: {}, players: {}, seeds: [], impacts: [] }),

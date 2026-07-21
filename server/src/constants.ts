@@ -49,6 +49,13 @@ export const SEEDLING_GROW_MS = 15_000;
 export const TARGET_COVERAGE_FRACTION = 0.4; // ~40% of the arena's area
 export const COVERAGE_FOOTPRINT_RADIUS = 24;
 export const SPAWN_MAX_PER_TICK = 14;
+/** Mirrors SPAWN_MAX_PER_TICK, but for the other direction: caps how many
+ * seedlings can mature into crops in a single tick. Without this, a batch
+ * of seedlings planted close together (e.g. everyone eating through the
+ * field at once early in a session) all matures in the exact same tick —
+ * one broadcast, one render, with a burst of brand-new crops mounting for
+ * the first time simultaneously. */
+export const SEEDLING_MATURE_MAX_PER_TICK = 14;
 export const WORLD_ENTITY_CAP = 2200; // hard safety ceiling on crops+seedlings combined
 
 /** Power-ups: whenever a seedling matures (the normal "a crop appears"
@@ -101,22 +108,31 @@ export const HIT_INVULN_MS = 500;
 /** Bots take the occasional shot too — sparse, and roughly aimed toward
  * the arena center rather than at a specific target, for a bit of ambient
  * danger without bots being real snipers. Only applies while a bot isn't
- * aiming at a real threat (see BOT_AGGRO_* below), which takes over. */
+ * aiming at a threat (see BOT_AGGRO_* below), which takes over. */
 export const BOT_FIRE_CHECK_INTERVAL_MS = 4000;
 export const BOT_FIRE_CHANCE = 0.2; // rolled once per check interval, per bot
 export const BOT_FIRE_CENTER_BIAS = 0.5; // 0 = pure random direction, 1 = always at center
 
-/** Bots react to real players specifically: getting close makes a bot aim
- * and fire back (a standoff — it holds its ground), while actually being
- * shot at (hit or just a near-miss) makes it also back off for a short,
- * capped burst before settling back into the standoff. Deliberately not a
- * full retreat — a bot that sprints across the map the instant anyone
- * gets close reads as "parting the red sea," not a reactive opponent. */
-export const BOT_AGGRO_APPROACH_RADIUS = 160; // a real player this close -> aim & fire, no movement change
-export const BOT_AGGRO_NOTICE_RADIUS = 240; // a real player's shot fired this close also aggros the bot
+/** Bots react to anyone — another bot or a real player, no distinction —
+ * getting close makes a bot aim and fire back (a standoff — it holds its
+ * ground), while actually being shot at (hit or just a near-miss) makes
+ * it also back off for a short, capped burst before settling back into
+ * the standoff. Deliberately not a full retreat — a bot that sprints
+ * across the map the instant anyone gets close reads as "parting the red
+ * sea," not a reactive opponent. */
+export const BOT_AGGRO_APPROACH_RADIUS = 160; // another player this close -> aim & fire, no movement change
+export const BOT_AGGRO_NOTICE_RADIUS = 240; // another player's shot fired this close also aggros the bot
 export const BOT_AGGRO_AIM_DURATION_MS = 3000; // how long a bot keeps aiming/firing after its last trigger
 export const BOT_AGGRO_FIRE_INTERVAL_MS = 850; // faster/more assertive than ambient fire while aiming
 export const BOT_AGGRO_AIM_JITTER_RAD = (15 * Math.PI) / 180; // +/- 15 degrees — reactive, not a laser
+/** When picking which nearby player to aim at, a real player's distance
+ * counts as this fraction of its actual value — biasing the choice
+ * toward real players without making it absolute. At 0.35, a bot roughly
+ * a third as close still beats a real player in the comparison, so a bot
+ * standing right on top of you can still win out, but otherwise a real
+ * player nearby is the usual pick over another bot. See
+ * nearestOtherPlayerWithin. */
+export const BOT_TARGET_PLAYER_BIAS = 0.35;
 export const BOT_FLEE_DURATION_MS = 1100; // short "back away" burst, only from being fired at
 
 /** New players spawn with this many crops so they're not instantly helpless. */

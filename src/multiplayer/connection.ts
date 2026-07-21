@@ -40,6 +40,9 @@ function handleMessage(msg: ServerMessage) {
     case "powerUpRemove":
       store._removePowerUps(msg.ids);
       break;
+    case "powerUpPickup":
+      store._setPowerUpPickup(msg.kind);
+      break;
     case "playerLeft":
       store._removePlayer(msg.id);
       break;
