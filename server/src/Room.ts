@@ -71,6 +71,11 @@ interface InternalSeedProjectile {
   dirX: number;
   dirY: number;
   ownerId: string;
+  /** Captured at fire time rather than looked up live off ownerId — in a
+   * mutual-kill tick the shooter can already be removed from `players`
+   * (via a different seed resolving first) by the time this one lands,
+   * which would otherwise blank out the "who popped me" name. */
+  ownerName: string;
   traveled: number;
 }
 
@@ -650,6 +655,7 @@ export class Room {
       dirX,
       dirY,
       ownerId: p.id,
+      ownerName: p.name,
       traveled: 0,
     };
     this.seeds.set(seed.id, seed);
@@ -721,8 +727,19 @@ export class Room {
       return;
     }
 
-    const crit = Math.random() < C.SEED_HIT_CRIT_CHANCE;
-    const nominalDrop = crit ? C.SEED_HIT_CRIT_DROP : C.SEED_HIT_DROP;
+    // Crit chance scales with how many crops the target is carrying —
+    // the more they're holding, the riskier it is to get caught.
+    const critChance = Math.min(
+      1,
+      C.SEED_HIT_CRIT_CHANCE_BASE + target.crops * C.SEED_HIT_CRIT_CHANCE_PER_CROP
+    );
+    const crit = Math.random() < critChance;
+    const superCrit = crit && Math.random() < C.SEED_HIT_SUPER_CRIT_SHARE;
+    const nominalDrop = superCrit
+      ? C.SEED_HIT_SUPER_CRIT_DROP
+      : crit
+        ? C.SEED_HIT_CRIT_DROP
+        : C.SEED_HIT_DROP;
     const eliminated = target.crops < nominalDrop;
     const actualDrop = eliminated ? target.crops : nominalDrop;
 
@@ -747,7 +764,7 @@ export class Room {
     this.scatterCropsToward(target.x, target.y, actualDrop, towardX, towardY);
 
     if (eliminated) {
-      if (!target.isBot) this.send(target, { t: "popped", byName: shooter?.name ?? "a seed" });
+      if (!target.isBot) this.send(target, { t: "popped", byName: shooter?.name ?? seed.ownerName });
       this.leave(target.id);
     } else {
       target.crops -= actualDrop;

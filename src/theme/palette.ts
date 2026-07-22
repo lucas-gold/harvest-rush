@@ -22,6 +22,12 @@ export const PALETTE = {
   arenaGroundDark: "#2b562f",
   arenaBoundary: "#e0433a",
 
+  // Decorative lobby trees — deliberately darker than the arena ground
+  // (not just a slightly-off variant of it) so a tree's canopy reads as
+  // its own shape against the background instead of blending into it.
+  treeCanopy: "#1f4023",
+  treeCanopyShade: "#163015",
+
   // Wheat — crops in the ground, the backpack stack, and planted seedlings
   // all share this family for visual consistency.
   wheatGold: "#e8c14a",

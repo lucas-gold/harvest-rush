@@ -3,8 +3,6 @@ import { View, StyleSheet } from "react-native";
 import { PixelCanvas } from "../pixelart/PixelCanvas";
 import { buildTreeSprite } from "../pixelart/decorSprites";
 
-const treeMatrix = buildTreeSprite();
-
 // Fixed scatter (percentage-based so it holds up across screen sizes)
 // rather than randomized per-mount — a decoration that shifts every time
 // you revisit the entry screen would be distracting, not charming.
@@ -21,6 +19,11 @@ const TREES: { left: `${number}%`; top: `${number}%`; size: number; opacity: num
   { left: "79%", top: "80%", size: 96, opacity: 0.45 },
 ];
 
+// Built once per slot at module scope (not per-render) — each index gets
+// a different apple layout (see buildTreeSprite's variant param) so trees
+// scattered across the screen don't all look like copies of each other.
+const treeMatrices = TREES.map((_, i) => buildTreeSprite(i));
+
 /** Purely decorative 16-bit trees scattered behind the entry screen's
  * form content — entry screen only, per design. */
 export function EntryTrees() {
@@ -28,7 +31,7 @@ export function EntryTrees() {
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {TREES.map((t, i) => (
         <View key={i} style={{ position: "absolute", left: t.left, top: t.top, opacity: t.opacity }}>
-          <PixelCanvas matrix={treeMatrix} size={t.size} />
+          <PixelCanvas matrix={treeMatrices[i]} size={t.size} />
         </View>
       ))}
     </View>

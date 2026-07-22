@@ -24,7 +24,7 @@ export const TICK_MS = 60;
 /** Movement. No more speed boost (see seed combat below) — base is a
  * little higher than it was pre-removal to compensate for losing that
  * burst-speed utility entirely. */
-export const BASE_SPEED = 160; // +~3%
+export const BASE_SPEED = 164.8; // +3%
 export const MAX_SPEED_PENALTY = 0.4; // biggest players top out 40% slower
 export const SPEED_PENALTY_PER_CROP = 300; // crops to reach the full penalty
 /** Bots have no reaction time, distraction, or aiming imprecision — without
@@ -82,7 +82,7 @@ export const POWERUP_RAPID_FIRE_COOLDOWN_MS = 180;
  * shot on a cooldown and launches a seed in the player's current facing
  * direction — close-ish range, not point-blank, not cross-map. */
 export const SEED_COST_CROPS = 1;
-export const FIRE_COOLDOWN_MS = 450;
+export const FIRE_COOLDOWN_MS = 391; // 450 / 1.15 — 15% faster fire rate
 export const SEED_PROJECTILE_SPEED = 480; // world units / sec, before easing near the end
 export const SEED_RANGE = 220; // world units
 export const SEED_HIT_RADIUS = 20; // how close a seed must pass to a player to land
@@ -93,9 +93,20 @@ export const SEED_HIT_RADIUS = 20; // how close a seed must pass to a player to 
  * point reads as a real object settling. */
 export const SEED_DECEL_START_FRACTION = 0.55;
 export const SEED_MIN_SPEED_FRACTION = 0.32;
-export const SEED_HIT_DROP = 20;
-export const SEED_HIT_CRIT_DROP = 30;
-export const SEED_HIT_CRIT_CHANCE = 0.04;
+export const SEED_HIT_DROP = 25;
+/** Two crit tiers instead of one — a crit rolls again to decide which.
+ * SEED_HIT_SUPER_CRIT_SHARE is that second roll: the fraction of crits
+ * that land the bigger tier rather than the smaller one. */
+export const SEED_HIT_CRIT_DROP = 35;
+export const SEED_HIT_SUPER_CRIT_DROP = 45;
+export const SEED_HIT_SUPER_CRIT_SHARE = 0.2; // of crits: 80% land CRIT_DROP, 20% land SUPER_CRIT_DROP
+/** Crit chance scales with the TARGET's crop count — the more someone is
+ * carrying, the riskier it is to sit on it. At the base rate alone a
+ * player with 0 crops still crits 6% of the time; every 100 crops the
+ * target is carrying adds another 1.5 percentage points (200 crops ->
+ * 6% + 3% = 9%). */
+export const SEED_HIT_CRIT_CHANCE_BASE = 0.06;
+export const SEED_HIT_CRIT_CHANCE_PER_CROP = 0.00015; // 1.5% per 100 crops
 /** A hit's dropped crops land biased toward the shooter, not the victim —
  * otherwise the victim could just immediately re-collect their own drop.
  * 0 = scatters at the victim, 1 = scatters right at the shooter. */
@@ -124,7 +135,9 @@ export const BOT_AGGRO_APPROACH_RADIUS = 160; // another player this close -> ai
 export const BOT_AGGRO_NOTICE_RADIUS = 240; // another player's shot fired this close also aggros the bot
 export const BOT_AGGRO_AIM_DURATION_MS = 3000; // how long a bot keeps aiming/firing after its last trigger
 export const BOT_AGGRO_FIRE_INTERVAL_MS = 850; // faster/more assertive than ambient fire while aiming
-export const BOT_AGGRO_AIM_JITTER_RAD = (15 * Math.PI) / 180; // +/- 15 degrees — reactive, not a laser
+// +/- 32 degrees — wide enough that a bot regularly whiffs, especially
+// at range or against a strafing target, rather than reading as a laser.
+export const BOT_AGGRO_AIM_JITTER_RAD = (32 * Math.PI) / 180;
 /** When picking which nearby player to aim at, a real player's distance
  * counts as this fraction of its actual value — biasing the choice
  * toward real players without making it absolute. At 0.35, a bot roughly

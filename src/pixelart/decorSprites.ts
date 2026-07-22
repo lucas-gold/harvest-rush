@@ -1,53 +1,71 @@
 import { PixelMatrix } from "./PixelCanvas";
 import { blank, fillRect, setCells } from "./builder";
 
-/** A round, blobby 16-bit deciduous tree — a wide leafy canopy over a
- * short trunk, not an evergreen pyramid. Purely decorative background
- * texture (see EntryTrees), not a gameplay sprite, so it reuses existing
- * palette colors rather than adding new ones just for this. */
-export function buildTreeSprite(): PixelMatrix {
+// Candidate apple spots spread through the canopy interior, well clear of
+// the silhouette edge. Each tree only uses a 6-spot window of this pool
+// (see buildTreeSprite's `variant` param) so multiple trees on screen
+// together don't all show the exact same apple layout.
+const APPLE_POOL: [number, number][] = [
+  [6, 1],
+  [9, 1],
+  [7, 2],
+  [4, 3],
+  [11, 3],
+  [10, 4],
+  [3, 5],
+  [12, 5],
+  [8, 6],
+  [6, 7],
+  [9, 7],
+  [5, 8],
+];
+
+/** A round, whimsical 16-bit deciduous tree — a puffy canopy (stepped
+ * like classic RPG tree sprites, symmetric top-to-bottom so it reads as
+ * an actual pom-pom rather than lopsided, and closer to circular than a
+ * flattened oval) over a short trunk with a small root flare, plus a
+ * scatter of apples for storybook charm. Purely decorative background
+ * texture (see EntryTrees), not a gameplay sprite.
+ *
+ * `variant` picks a different 6-spot window of APPLE_POOL (wrapping, step
+ * of 5 out of 12 candidates) so trees placed side by side don't look like
+ * copies of each other. */
+export function buildTreeSprite(variant: number = 0): PixelMatrix {
   const m = blank();
 
-  // Canopy — roughly circular, narrow at the top and bottom, wide
-  // through the middle. The bottom row is 2 cells tall and the trunk
-  // (below) starts at the same row rather than after it, so the trunk
-  // is drawn directly into the canopy's base with no gap between them.
-  fillRect(m, 6, 0, 4, 1, "arenaGroundDark");
-  fillRect(m, 4, 1, 8, 1, "arenaGroundDark");
-  fillRect(m, 3, 2, 10, 1, "arenaGroundDark");
-  fillRect(m, 2, 3, 12, 1, "arenaGroundDark");
-  fillRect(m, 1, 4, 14, 2, "arenaGroundDark");
-  fillRect(m, 2, 6, 12, 1, "arenaGroundDark");
-  fillRect(m, 3, 7, 10, 1, "arenaGroundDark");
-  fillRect(m, 5, 8, 6, 2, "arenaGroundDark");
+  // Canopy — a symmetric stepped circle (4/8/10/12/12/12/12/10/8/4), taller
+  // relative to its width than before so it reads closer to round rather
+  // than a squashed ellipse.
+  fillRect(m, 6, 0, 4, 1, "treeCanopy");
+  fillRect(m, 4, 1, 8, 1, "treeCanopy");
+  fillRect(m, 3, 2, 10, 1, "treeCanopy");
+  fillRect(m, 2, 3, 12, 4, "treeCanopy");
+  fillRect(m, 3, 7, 10, 1, "treeCanopy");
+  fillRect(m, 4, 8, 8, 1, "treeCanopy");
+  fillRect(m, 6, 9, 4, 1, "treeCanopy");
 
-  // Leaf texture, kept small and well inside the canopy's edges so it
-  // reads as dappled shading rather than separate floating rectangles.
-  fillRect(m, 4, 3, 2, 2, "sproutGreenDark");
-  fillRect(m, 9, 4, 3, 2, "sproutGreenDark");
-  fillRect(m, 6, 6, 2, 1, "sproutGreenDark");
+  // A soft shadow along the underside rim — a single continuous band
+  // (not scattered patches) so the canopy reads as a round volume
+  // catching light from above, without needing a hard outline.
+  fillRect(m, 3, 7, 10, 1, "treeCanopyShade");
+  fillRect(m, 4, 8, 8, 1, "treeCanopyShade");
+  fillRect(m, 6, 9, 4, 1, "treeCanopyShade");
 
-  // Trunk — starts at the same row as the canopy's base (not below it),
-  // painting over the canopy's center so it visibly grows out of the
-  // foliage instead of floating a row beneath it.
-  fillRect(m, 7, 8, 2, 6, "backpackBrownDark");
+  // Trunk — starts one row below the canopy's last (narrowest) row rather
+  // than overlapping into it, so it sits flush against the base instead
+  // of poking up into the foliage. A single-row root flare at the very
+  // bottom reads as small roots without becoming a big blocky rectangle.
+  fillRect(m, 7, 10, 2, 4, "backpackBrownDark");
+  fillRect(m, 6, 14, 4, 1, "backpackBrownDark");
 
-  // A 1px outline around the whole silhouette (canopy + trunk): any
-  // still-empty cell touching a filled one becomes an outline cell. Flat
-  // color blobs with no border tend to blend into the same-toned
-  // background; this is what makes the shape actually read as a tree.
-  const filled = (x: number, y: number) =>
-    y >= 0 && y < m.length && x >= 0 && x < m[y].length && m[y][x] !== null;
-  const toOutline: [number, number][] = [];
-  for (let y = 0; y < m.length; y++) {
-    for (let x = 0; x < m[y].length; x++) {
-      if (filled(x, y)) continue;
-      if (filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1)) {
-        toOutline.push([x, y]);
-      }
-    }
-  }
-  setCells(m, toOutline, "outline");
+  // Apples — a rotating window into APPLE_POOL, scattered at varied
+  // heights and sides rather than following a single line.
+  const offset = (variant * 5) % APPLE_POOL.length;
+  const apples = Array.from(
+    { length: 6 },
+    (_, k) => APPLE_POOL[(offset + k) % APPLE_POOL.length]
+  );
+  setCells(m, apples, "shirtRed");
 
   return m;
 }
