@@ -5,7 +5,13 @@
 // stack was never actually an easier target in the current combat system,
 // and the zoom-out was pure cost (more of the world in view, more entities
 // to render) for no gameplay benefit. Zoom is just a fixed constant now.
-export const ZOOM = 1.1;
+//
+// The visible world radius is viewport-size / zoom (see isInViewport
+// below), so a big desktop window shows proportionally more of the arena
+// — and renders more crops/seedlings/players — than a phone screen at the
+// same zoom. Bumped from 1.1 so a full-screen desktop session shows less
+// world at once instead of scaling entity count with window size.
+export const ZOOM = 1.3;
 
 export interface Camera {
   x: number;
