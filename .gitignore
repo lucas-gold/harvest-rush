@@ -46,3 +46,6 @@ server/web-client/*
 
 # local tooling config
 .claude/
+
+# Firebase CLI local deploy cache
+.firebase/
