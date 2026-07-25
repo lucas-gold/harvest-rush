@@ -29,8 +29,11 @@ export const MAX_SPEED_PENALTY = 0.4; // biggest players top out 40% slower
 export const SPEED_PENALTY_PER_CROP = 300; // crops to reach the full penalty
 /** Bots have no reaction time, distraction, or aiming imprecision — without
  * a handicap they out-collect any real player just by being mechanically
- * perfect. Slowing them down physically is the most direct lever. */
-export const BOT_SPEED_MULTIPLIER = 0.82;
+ * perfect. Slowing them down physically is the most direct lever. Nudged
+ * up 5% (0.82 -> 0.861) for a bit more difficulty — aim accuracy was
+ * deliberately loosened recently (see BOT_AGGRO_AIM_JITTER_RAD) so speed,
+ * not aim, is the lever here. */
+export const BOT_SPEED_MULTIPLIER = 0.861;
 
 /** Sizing — radius grows with the sqrt of crop count (area-proportional,
  * agar.io-style) so it doesn't blow up linearly at high scores. */
@@ -46,7 +49,7 @@ export const SEEDLING_GROW_MS = 15_000;
  * with population. Each crop/seedling "claims" a personal-space circle of
  * COVERAGE_FOOTPRINT_RADIUS for this purpose — bigger than its sprite so a
  * fully-covered board still reads as scattered plants, not solid noise. */
-export const TARGET_COVERAGE_FRACTION = 0.4; // ~40% of the arena's area
+export const TARGET_COVERAGE_FRACTION = 0.34; // ~34% of the arena's area (-15% from 0.4)
 export const COVERAGE_FOOTPRINT_RADIUS = 24;
 export const SPAWN_MAX_PER_TICK = 14;
 /** Mirrors SPAWN_MAX_PER_TICK, but for the other direction: caps how many

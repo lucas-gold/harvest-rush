@@ -36,12 +36,23 @@ const POOF_DURATION_MS = 320;
 // largest remaining render cost. Distant players (you're not about to
 // interact with them anyway) collapse to one plain colored dot. Self
 // always renders in full detail regardless of distance (there's only one).
-const PLAYER_DETAIL_RADIUS = 420;
+//
+// Needs to cover the actual visible viewport, not just a fixed gameplay
+// range: a full-screen desktop window shows a visible half-width of
+// viewportWidth/2/ZOOM world units (see camera.ts) — at a common 1920px
+// window and ZOOM=1.365 that's ~703 units, well past the old 420, which
+// is why players near the edge on a wide screen were still showing as
+// dots despite clearly being on screen. This doesn't chase every
+// possible monitor width, just pushes it out enough that typical
+// full-screen setups don't see the seam.
+const PLAYER_DETAIL_RADIUS = 650;
 // Radius alone doesn't bound worst-case cost: a crowd clustered near
 // spawn can put dozens of players within PLAYER_DETAIL_RADIUS at once.
 // Capping to the nearest N (by actual distance, not render order) keeps
 // per-frame sprite count bounded regardless of how players are
-// distributed, while still preferring whoever's actually closest.
+// distributed, while still preferring whoever's actually closest — so
+// raising the radius above doesn't raise worst-case render cost, it just
+// widens which players are *eligible* to compete for those 18 slots.
 const MAX_FULL_DETAIL_PLAYERS = 18;
 // Zoom is fixed (see ZOOM in camera.ts), but the arena itself grows up to
 // ARENA_RADIUS_REFERENCE with population, and the field is ~40% ground
@@ -146,9 +157,16 @@ export function ArenaCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [powerUpsVersion, camQuantX, camQuantY, camera.zoom, width, height]
   );
+  // Margin must be at least PLAYER_DETAIL_RADIUS: isInViewport does a
+  // rectangular (axis-aligned) check, but nearPlayerIds below does a
+  // circular one. A margin smaller than the radius can exclude a player
+  // near the top/bottom edge (small horizontal offset, larger vertical
+  // one) before nearPlayerIds ever sees them — even though they're well
+  // within the circular radius — which is exactly how someone visibly
+  // close on screen could still render as a plain dot.
   const visiblePlayers = useMemo(
     () =>
-      Object.values(players).filter((p) => isInViewport(p.x, p.y, camera, width, height, 250)),
+      Object.values(players).filter((p) => isInViewport(p.x, p.y, camera, width, height, PLAYER_DETAIL_RADIUS)),
     [players, camera, width, height]
   );
   // Seeds are few and short-lived (well under a second in flight) — no

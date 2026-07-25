@@ -1,17 +1,4 @@
-// Used to scale out as the local player's crop stack grew, agar.io-style.
-// Dropped: the avatar sprite itself never changed size (only the backpack
-// pile did, capped at MAX_BUNDLES), and seed-hit detection uses a fixed
-// SEED_HIT_RADIUS rather than the player's collision radius — so a bigger
-// stack was never actually an easier target in the current combat system,
-// and the zoom-out was pure cost (more of the world in view, more entities
-// to render) for no gameplay benefit. Zoom is just a fixed constant now.
-//
-// The visible world radius is viewport-size / zoom (see isInViewport
-// below), so a big desktop window shows proportionally more of the arena
-// — and renders more crops/seedlings/players — than a phone screen at the
-// same zoom. Bumped from 1.1 so a full-screen desktop session shows less
-// world at once instead of scaling entity count with window size.
-export const ZOOM = 1.3;
+export const ZOOM = 1.4;
 
 export interface Camera {
   x: number;
