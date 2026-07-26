@@ -109,16 +109,37 @@ export function disconnectFromArena() {
   useArenaStore.getState()._setStatus("idle");
 }
 
+let lastSentFiring = false;
+
+function flushInput() {
+  inputThrottleId = null;
+  if (!pendingInput || !socket || socket.readyState !== WebSocket.OPEN) return;
+  lastSentFiring = pendingInput.firing;
+  const msg: ClientMessage = { t: "input", ...pendingInput };
+  socket.send(JSON.stringify(msg));
+  pendingInput = null;
+}
+
 /** Direction + firing are throttled to one send per tick interval — the
  * latest call before each interval elapses wins, so rapid mouse/touch
- * movement doesn't flood the socket. */
+ * movement doesn't flood the socket.
+ *
+ * Firing turning ON is the one exception: a quick tap-and-release (a
+ * fire button on mobile is often held well under 66ms) can otherwise
+ * have its `firing: true` overwritten by the `firing: false` from the
+ * release before either ever reaches the socket — the shot silently
+ * never happens. Flush that rising edge immediately; firing turning back
+ * off, and plain direction updates, stay throttled as before. */
 export function sendInput(dirX: number, dirY: number, firing: boolean) {
   pendingInput = { dirX, dirY, firing };
+  if (firing && !lastSentFiring) {
+    if (inputThrottleId) clearTimeout(inputThrottleId);
+    flushInput();
+    inputThrottleId = setTimeout(() => {
+      inputThrottleId = null;
+    }, INPUT_SEND_INTERVAL_MS);
+    return;
+  }
   if (inputThrottleId) return;
-  inputThrottleId = setTimeout(() => {
-    inputThrottleId = null;
-    if (!pendingInput || !socket || socket.readyState !== WebSocket.OPEN) return;
-    const msg: ClientMessage = { t: "input", ...pendingInput };
-    socket.send(JSON.stringify(msg));
-  }, INPUT_SEND_INTERVAL_MS);
+  inputThrottleId = setTimeout(flushInput, INPUT_SEND_INTERVAL_MS);
 }
