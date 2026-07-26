@@ -14,6 +14,7 @@ export function FireButton({ active, onPressIn, onPressOut, style }: Props) {
     <Pressable
       onPressIn={onPressIn}
       onPressOut={onPressOut}
+      hitSlop={20}
       style={[styles.button, active && styles.buttonActive, style]}
     >
       <PixelText style={styles.label}>FIRE</PixelText>

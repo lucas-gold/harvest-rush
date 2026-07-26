@@ -13,6 +13,7 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { applyMobileWebViewportFixes } from "./src/web/mobileWebFixes";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -31,6 +32,10 @@ export default function App() {
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded]);
+
+  useEffect(() => {
+    applyMobileWebViewportFixes();
+  }, []);
 
   if (!fontsLoaded) return null;
 
