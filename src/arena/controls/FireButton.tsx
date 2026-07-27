@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, StyleSheet, StyleProp, ViewStyle } from "react-native";
+import { View, StyleSheet, StyleProp, ViewStyle } from "react-native";
 import { PixelText } from "../../theme/PixelText";
 
 interface Props {
@@ -9,16 +9,23 @@ interface Props {
   style?: StyleProp<ViewStyle>;
 }
 
+// Raw touch handlers, not Pressable — Pressable goes through React
+// Native's legacy responder system, which only lets one gesture "win"
+// globally at a time. This button needs to work with its own finger
+// independently of whatever's happening on the drag layer elsewhere on
+// screen (see DragFireButtonControls), which raw onTouchStart/End give
+// for free — each touch is tracked by the view it actually landed on.
 export function FireButton({ active, onPressIn, onPressOut, style }: Props) {
   return (
-    <Pressable
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
+    <View
+      onTouchStart={onPressIn}
+      onTouchEnd={onPressOut}
+      onTouchCancel={onPressOut}
       hitSlop={20}
       style={[styles.button, active && styles.buttonActive, style]}
     >
       <PixelText style={styles.label}>FIRE</PixelText>
-    </Pressable>
+    </View>
   );
 }
 
