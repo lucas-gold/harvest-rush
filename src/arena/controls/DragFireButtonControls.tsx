@@ -58,7 +58,10 @@ export function DragFireButtonControls() {
   };
 
   const onTouchMove = (evt: GestureResponderEvent) => {
-    const touch = evt.nativeEvent.touches.find((t) => t.identifier === dragTouchId.current);
+    // nativeEvent.touches is typed as a plain array, but on web it's the
+    // browser's actual DOM TouchList — array-like, not a real Array, so
+    // .find() isn't guaranteed to exist on it. Array.from first to be safe.
+    const touch = Array.from(evt.nativeEvent.touches).find((t) => t.identifier === dragTouchId.current);
     if (touch) applyPointer(touch.pageX, touch.pageY);
   };
 
