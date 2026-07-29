@@ -14,6 +14,7 @@ const LABELS: Record<PowerUpKind, { title: string; subtitle: string | null }> = 
   speed: { title: "Speed Boost!", subtitle: "15s" },
   rapidFire: { title: "Rapid Fire!", subtitle: "7.5s" },
   shield: { title: "Shield!", subtitle: null },
+  longRange: { title: "Long Range!", subtitle: "15s" },
 };
 
 /** A quick "what did I just pick up" popup — self only, not broadcast,

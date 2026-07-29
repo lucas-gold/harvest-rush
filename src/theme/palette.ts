@@ -48,6 +48,13 @@ export const PALETTE = {
   crystalBlueDark: "#1976d2",
   crystalBlueLight: "#d4f4ff",
 
+  // The #1 leaderboard crown — deliberately a richer, brighter gold than
+  // hatStraw/wheatGold so it reads as a distinct, special cosmetic rather
+  // than just another straw hat.
+  crownGold: "#ffd700",
+  crownGoldDark: "#b8860b",
+  crownGoldShine: "#fff6c9",
+
   outline: "#1a140f",
   white: "#ffffff",
   shadow: "rgba(0,0,0,0.25)",

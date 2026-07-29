@@ -88,6 +88,12 @@ export function ArenaCanvas() {
   const powerUpsVersion = useArenaStore((s) => s.powerUpsVersion);
   const impacts = useArenaStore((s) => s.impacts);
   const arenaRadius = useArenaStore((s) => s.arenaRadius);
+  const leaderboard = useArenaStore((s) => s.leaderboard);
+  // No crown when everyone's still at 0 -- an arbitrary "#1 with nothing"
+  // at round start isn't a real leader. Mirrors the server's own
+  // topPlayerId rule (see Room.ts) so the crown never disagrees with who
+  // bots are actually biased toward targeting.
+  const topPlayerId = leaderboard.length > 0 && leaderboard[0].crops > 0 ? leaderboard[0].id : null;
 
   // The very first connect measured as a reproducible ~120-170ms main-
   // thread stall (two back-to-back long tasks right at mount), even with
@@ -353,6 +359,7 @@ export function ArenaCanvas() {
                       size={r * 1.8}
                       direction={dir}
                       walkFrame={moving ? walkFrame : 0}
+                      crown={p.id === topPlayerId}
                     />
                   </View>
                 </>

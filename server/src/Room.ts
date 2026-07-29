@@ -44,11 +44,13 @@ interface InternalPlayer {
   aimUntil: number;
   fleeUntil: number;
   // power-up state — see POWERUP_* in constants.ts. speedBoostUntil/
-  // rapidFireUntil are 0 when inactive; shielded is a plain flag since
-  // it's consumed by a hit rather than expiring on a timer.
+  // rapidFireUntil/longRangeUntil are 0 when inactive; shielded is a
+  // plain flag since it's consumed by a hit rather than expiring on a
+  // timer.
   speedBoostUntil: number;
   rapidFireUntil: number;
   shielded: boolean;
+  longRangeUntil: number;
 }
 
 interface InternalCrop {
@@ -77,6 +79,10 @@ interface InternalSeedProjectile {
    * which would otherwise blank out the "who popped me" name. */
   ownerName: string;
   traveled: number;
+  /** Captured at fire time from the shooter's long-range buff state —
+   * doubled range shouldn't change mid-flight just because the buff
+   * happens to expire while this exact seed is still in the air. */
+  range: number;
 }
 
 interface InternalPowerUp {
@@ -98,13 +104,17 @@ export class Room {
   private seeds = new Map<string, InternalSeedProjectile>();
   private powerUps = new Map<string, InternalPowerUp>();
   private timer: ReturnType<typeof setInterval> | null = null;
+  // Whoever's #1 on the leaderboard right now (crown holder), or null if
+  // nobody has any crops yet. Set once per tick in flush() from the same
+  // sort the leaderboard broadcast uses, and read by
+  // nearestOtherPlayerWithin for the crown-target bot bias.
+  private topPlayerId: string | null = null;
 
-  // Recomputed on join/leave from realPlayerCount() alone — bots always
-  // top up to exactly MIN_LOBBY_POPULATION whenever there's >=1 real
-  // player, so clamping realPlayerCount() into
-  // [MIN_LOBBY_POPULATION, MAX_PLAYERS_PER_ROOM] gives the same answer as
-  // clamping total occupancy would, without an ordering dependency on
-  // whether bots have been (re)spawned yet this call.
+  // Recomputed on join/leave from realPlayerCount() alone — bot count is
+  // itself derived from realPlayerCount() (see rebalanceBots), so total
+  // occupancy is always realPlayerCount() + min(MAX_BOTS, MAX_PLAYERS_PER_
+  // ROOM - realPlayerCount()), without an ordering dependency on whether
+  // bots have been (re)spawned yet this call.
   private arenaRadius = C.arenaRadiusForPopulation(0);
 
   // events accumulated during a tick, flushed once at the end of it
@@ -199,6 +209,7 @@ export class Room {
       speedBoostUntil: 0,
       rapidFireUntil: 0,
       shielded: false,
+      longRangeUntil: 0,
     };
     this.players.set(id, player);
     this.recomputeArenaRadius();
@@ -317,7 +328,10 @@ export class Room {
 
   private rebalanceBots() {
     const real = this.realPlayerCount();
-    const desiredBots = real > 0 ? Math.max(0, C.MIN_LOBBY_POPULATION - real) : 0;
+    // Always up to MAX_BOTS regardless of how few real players there are
+    // (1 real player still gets the full 9), shrinking only once
+    // real+bots would otherwise exceed room capacity.
+    const desiredBots = real > 0 ? Math.max(0, Math.min(C.MAX_BOTS, C.MAX_PLAYERS_PER_ROOM - real)) : 0;
     const currentBots = [...this.players.values()].filter((p) => p.isBot);
 
     if (currentBots.length < desiredBots) {
@@ -357,6 +371,7 @@ export class Room {
       speedBoostUntil: 0,
       rapidFireUntil: 0,
       shielded: false,
+      longRangeUntil: 0,
     };
     this.players.set(id, bot);
   }
@@ -445,8 +460,10 @@ export class Room {
    * distance is scaled down (BOT_TARGET_PLAYER_BIAS) for comparison
    * purposes, so a nearby real player usually wins the pick over a
    * similarly-close bot — but a bot that's dramatically closer can still
-   * win. A bias, not an absolute rule; still gated on the real
-   * (unscaled) distance being within `radius` at all. */
+   * win. Whoever's currently #1 on the leaderboard (see topPlayerId, set
+   * in flush) gets a further bias on top of that. Both are biases, not
+   * absolute rules; still gated on the real (unscaled) distance being
+   * within `radius` at all. */
   private nearestOtherPlayerWithin(p: InternalPlayer, radius: number): InternalPlayer | null {
     const r2 = radius * radius;
     let best: InternalPlayer | null = null;
@@ -455,7 +472,8 @@ export class Room {
       if (other.id === p.id) continue;
       const d2 = dist2(p.x, p.y, other.x, other.y);
       if (d2 > r2) continue;
-      const score = other.isBot ? d2 : d2 * C.BOT_TARGET_PLAYER_BIAS;
+      let score = other.isBot ? d2 : d2 * C.BOT_TARGET_PLAYER_BIAS;
+      if (other.id === this.topPlayerId) score *= C.BOT_CROWN_TARGET_BIAS;
       if (score < bestScore) {
         best = other;
         bestScore = score;
@@ -511,10 +529,16 @@ export class Room {
   }
 
   /** Aimed at `target` but with some random spread — bots are reactive,
-   * not perfect shots. */
+   * not perfect shots. The spread tightens (more accurate) the more
+   * crops the target is carrying, capping at a 25% accuracy bonus once
+   * they're holding BOT_AIM_ACCURACY_FULL_AT_CROPS or more — see
+   * BOT_AIM_ACCURACY_BONUS_MAX. */
   private jitteredDirectionToward(p: InternalPlayer, target: InternalPlayer): { x: number; y: number } {
     const baseAngle = Math.atan2(target.y - p.y, target.x - p.x);
-    const angle = baseAngle + (Math.random() * 2 - 1) * C.BOT_AGGRO_AIM_JITTER_RAD;
+    const accuracyBonus =
+      C.BOT_AIM_ACCURACY_BONUS_MAX * Math.min(1, target.crops / C.BOT_AIM_ACCURACY_FULL_AT_CROPS);
+    const jitter = C.BOT_AGGRO_AIM_JITTER_RAD / (1 + accuracyBonus);
+    const angle = baseAngle + (Math.random() * 2 - 1) * jitter;
     return { x: Math.cos(angle), y: Math.sin(angle) };
   }
 
@@ -647,13 +671,21 @@ export class Room {
   private tryFire(p: InternalPlayer, now: number, dirX: number, dirY: number) {
     if (dirX === 0 && dirY === 0) return;
     const rapid = now < p.rapidFireUntil;
-    const cooldown = rapid ? C.POWERUP_RAPID_FIRE_COOLDOWN_MS : C.FIRE_COOLDOWN_MS;
+    const baseCooldown = rapid ? C.POWERUP_RAPID_FIRE_COOLDOWN_MS : C.FIRE_COOLDOWN_MS;
+    // Carrying a lot of crops slows your own trigger finger too, not just
+    // your legs — up to FIRE_RATE_PENALTY_MAX slower once you're holding
+    // FIRE_RATE_PENALTY_FULL_AT_CROPS or more, ramping linearly below
+    // that. Applies to rapid fire too, same as the speed penalty still
+    // applies under the speed boost power-up (see speedFor).
+    const rateRampFraction = Math.min(1, p.crops / C.FIRE_RATE_PENALTY_FULL_AT_CROPS);
+    const cooldown = baseCooldown / (1 - C.FIRE_RATE_PENALTY_MAX * rateRampFraction);
     if (now - p.lastFireAt < cooldown) return;
     if (!rapid) {
       if (p.crops < C.SEED_COST_CROPS) return;
       p.crops -= C.SEED_COST_CROPS;
     }
     p.lastFireAt = now;
+    const range = now < p.longRangeUntil ? C.SEED_RANGE * C.POWERUP_LONG_RANGE_MULTIPLIER : C.SEED_RANGE;
     const seed: InternalSeedProjectile = {
       id: randomId("seed"),
       x: p.x,
@@ -663,6 +695,7 @@ export class Room {
       ownerId: p.id,
       ownerName: p.name,
       traveled: 0,
+      range,
     };
     this.seeds.set(seed.id, seed);
     // Any shot alerts nearby bots — a bot's own shot alerts other bots
@@ -678,8 +711,11 @@ export class Room {
       // Ease speed down over the last stretch of the flight instead of
       // travelling at a constant speed and then stopping dead (hit) or
       // vanishing (miss) — slowing into the landing point reads as a real
-      // object settling rather than a choppy, abrupt cutoff.
-      const rangeFrac = seed.traveled / C.SEED_RANGE;
+      // object settling rather than a choppy, abrupt cutoff. Uses this
+      // seed's own range (see tryFire), not the base SEED_RANGE, so a
+      // long-range shot eases in over its full doubled distance instead
+      // of decelerating at the normal-range point and coasting the rest.
+      const rangeFrac = seed.traveled / seed.range;
       let speedMul = 1;
       if (rangeFrac > C.SEED_DECEL_START_FRACTION) {
         const t = Math.min(1, (rangeFrac - C.SEED_DECEL_START_FRACTION) / (1 - C.SEED_DECEL_START_FRACTION));
@@ -687,7 +723,7 @@ export class Room {
       }
       const stepDist = C.SEED_PROJECTILE_SPEED * speedMul * dt;
 
-      const remaining = C.SEED_RANGE - seed.traveled;
+      const remaining = seed.range - seed.traveled;
       const step = Math.min(stepDist, remaining);
       const nextX = preX + seed.dirX * step;
       const nextY = preY + seed.dirY * step;
@@ -712,7 +748,7 @@ export class Room {
       seed.y = nextY;
       seed.traveled += step;
 
-      if (seed.traveled >= C.SEED_RANGE - 0.01) {
+      if (seed.traveled >= seed.range - 0.01) {
         // Missed everyone — plants where it lands instead of just vanishing.
         this.plantSeedling(seed.x, seed.y, now);
         this.seeds.delete(seed.id);
@@ -800,8 +836,12 @@ export class Room {
 
   private plantSeedling(x: number, y: number, now: number) {
     if (this.crops.size + this.seedlings.size >= C.WORLD_ENTITY_CAP) return;
+    // A seed that misses everyone plants wherever it runs out of range —
+    // which, fired from near the boundary, can be well outside the arena
+    // circle. Clamp so nothing ever takes root out of bounds.
+    const clamped = clampToCircle(x, y, this.arenaRadius);
     const id = randomId("sd");
-    const seedling: InternalSeedling = { id, x, y, plantedAt: now };
+    const seedling: InternalSeedling = { id, x: clamped.x, y: clamped.y, plantedAt: now };
     this.seedlings.set(id, seedling);
     this.pendingSeedlingSpawn.push(seedling);
   }
@@ -867,6 +907,11 @@ export class Room {
     if (roll < C.POWERUP_SPEED_CHANCE) return "speed";
     if (roll < C.POWERUP_SPEED_CHANCE + C.POWERUP_RAPID_FIRE_CHANCE) return "rapidFire";
     if (roll < C.POWERUP_SPEED_CHANCE + C.POWERUP_RAPID_FIRE_CHANCE + C.POWERUP_SHIELD_CHANCE) return "shield";
+    if (
+      roll <
+      C.POWERUP_SPEED_CHANCE + C.POWERUP_RAPID_FIRE_CHANCE + C.POWERUP_SHIELD_CHANCE + C.POWERUP_LONG_RANGE_CHANCE
+    )
+      return "longRange";
     return null;
   }
 
@@ -891,6 +936,8 @@ export class Room {
       p.speedBoostUntil = now + C.POWERUP_SPEED_DURATION_MS;
     } else if (kind === "rapidFire") {
       p.rapidFireUntil = now + C.POWERUP_RAPID_FIRE_DURATION_MS;
+    } else if (kind === "longRange") {
+      p.longRangeUntil = now + C.POWERUP_LONG_RANGE_DURATION_MS;
     } else {
       p.shielded = true;
     }
@@ -965,6 +1012,9 @@ export class Room {
       .sort((a, b) => b.crops - a.crops)
       .slice(0, 10)
       .map((p) => ({ id: p.id, name: p.name, crops: p.crops }));
+    // No crown when everyone's still at 0 -- an arbitrary "#1 with
+    // nothing" at round start isn't a real leader.
+    this.topPlayerId = leaderboard.length > 0 && leaderboard[0].crops > 0 ? leaderboard[0].id : null;
 
     const seeds: SeedProjectileSnapshot[] = [...this.seeds.values()].map((s) => ({
       id: s.id,

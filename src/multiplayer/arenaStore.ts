@@ -58,6 +58,10 @@ interface ArenaState {
   /** Bumped on every power-up pickup (self only) so PowerUpToast can key
    * off it even if the same kind is picked up twice in a row. */
   lastPowerUpPickup: { kind: PowerUpKind; at: number } | null;
+  /** How many other players/bots this player has eliminated this round —
+   * derived from hitConfirm's `eliminated` flag, reset on every fresh
+   * connect (join or Play Again). */
+  kills: number;
 
   _setStatus: (status: ConnectionStatus) => void;
   _setWelcome: (payload: {
@@ -86,6 +90,7 @@ interface ArenaState {
   _clearPop: () => void;
   _addImpact: (impact: { targetId: string; amount: number; crit: boolean }) => void;
   _setPowerUpPickup: (kind: PowerUpKind) => void;
+  _recordKill: () => void;
   _reset: () => void;
 }
 
@@ -106,6 +111,7 @@ const initial = {
   lastPop: null as { byName: string | null; at: number } | null,
   impacts: [] as DamageImpact[],
   lastPowerUpPickup: null as { kind: PowerUpKind; at: number } | null,
+  kills: 0,
 };
 
 let impactIdCounter = 0;
@@ -210,6 +216,8 @@ export const useArenaStore = create<ArenaState>()((set) => ({
     }),
 
   _setPowerUpPickup: (kind) => set({ lastPowerUpPickup: { kind, at: Date.now() } }),
+
+  _recordKill: () => set((s) => ({ kills: s.kills + 1 })),
 
   _reset: () =>
     set({ ...initial, crops: {}, seedlings: {}, powerUps: {}, players: {}, seeds: [], impacts: [] }),

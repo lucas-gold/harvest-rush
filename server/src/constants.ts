@@ -7,7 +7,7 @@
  * room: a sparsely populated room stays tighter so it doesn't feel empty,
  * a full one gets the most room to roam. See arenaRadiusForPopulation(). */
 export const ARENA_RADIUS_REFERENCE = 1500; // radius at MAX_PLAYERS_PER_ROOM occupants
-export const ARENA_RADIUS_MIN_FRACTION = 0.75; // radius at MIN_LOBBY_POPULATION occupants (the floor)
+export const ARENA_RADIUS_MIN_FRACTION = 0.75; // radius at the smallest realistic occupancy (1 + MAX_BOTS, the floor)
 export const ARENA_RADIUS_MAX_FRACTION = 1.0;
 
 /** Players per room before a new lobby is spun up. Keeps a single tiny VPS
@@ -31,7 +31,9 @@ export const BASE_SPEED = 164.8; // +3%
 // tied to the cap value, so "full penalty" was reached at a much lower
 // crop count than the constant's name implied -- these two now define
 // the same curve they describe.
-export const MAX_SPEED_PENALTY = 0.65; // biggest players top out 65% slower
+// 65% read as too slow/boring at high crop counts stacked with the other
+// new crop-scaled handicaps (fire rate, crit chance) -- dialed back.
+export const MAX_SPEED_PENALTY = 0.5; // biggest players top out 50% slower
 export const SPEED_PENALTY_FULL_AT_CROPS = 300; // crops needed to reach the full penalty
 /** Bots have no reaction time, distraction, or aiming imprecision — without
  * a handicap they out-collect any real player just by being mechanically
@@ -71,11 +73,12 @@ export const WORLD_ENTITY_CAP = 2200; // hard safety ceiling on crops+seedlings 
  * moment), there's a small chance it's a power-up instead of a plain
  * crop. Same pickup mechanic as a crop, distinct blue crystal look.
  * Chances are of a maturing seedling, and are independent of each other
- * (checked in order below, first match wins) — 0.67 + 0.25 + 0.33 = 1.25%
- * total, ~1 in 80 maturing crops. */
-export const POWERUP_SPEED_CHANCE = 0.0067;
-export const POWERUP_RAPID_FIRE_CHANCE = 0.0025;
-export const POWERUP_SHIELD_CHANCE = 0.0033;
+ * (checked in order below, first match wins) — 0.45 + 0.21 + 0.27 + 0.27
+ * = 1.2% total, ~1 in 83 maturing crops. */
+export const POWERUP_SPEED_CHANCE = 0.0045;
+export const POWERUP_RAPID_FIRE_CHANCE = 0.0021;
+export const POWERUP_SHIELD_CHANCE = 0.0027;
+export const POWERUP_LONG_RANGE_CHANCE = 0.0027;
 export const POWERUP_MAX_ON_MAP = 6; // safety cap — rare, but shouldn't accumulate forever if left uncollected
 export const POWERUP_SPEED_MULTIPLIER = 1.5;
 export const POWERUP_SPEED_DURATION_MS = 15_000;
@@ -83,6 +86,8 @@ export const POWERUP_RAPID_FIRE_DURATION_MS = 7_500;
 /** At least double FIRE_COOLDOWN_MS's rate — well more than double, so it
  * reads as a real burst rather than a marginal speed-up. */
 export const POWERUP_RAPID_FIRE_COOLDOWN_MS = 180;
+export const POWERUP_LONG_RANGE_DURATION_MS = 15_000;
+export const POWERUP_LONG_RANGE_MULTIPLIER = 2; // double SEED_RANGE while active
 // Shield has no duration — it's consumed by the next hit, however long
 // that takes, so there's no *_DURATION_MS constant for it.
 
@@ -92,6 +97,12 @@ export const POWERUP_RAPID_FIRE_COOLDOWN_MS = 180;
  * direction — close-ish range, not point-blank, not cross-map. */
 export const SEED_COST_CROPS = 1;
 export const FIRE_COOLDOWN_MS = 391; // 450 / 1.15 — 15% faster fire rate
+/** Own fire rate slows down the more crops you're carrying too — up to
+ * FIRE_RATE_PENALTY_MAX (50%) slower once you're holding
+ * FIRE_RATE_PENALTY_FULL_AT_CROPS (300) or more, ramping linearly below
+ * that. See tryFire. */
+export const FIRE_RATE_PENALTY_MAX = 0.5;
+export const FIRE_RATE_PENALTY_FULL_AT_CROPS = 300;
 export const SEED_PROJECTILE_SPEED = 480; // world units / sec, before easing near the end
 export const SEED_RANGE = 220; // world units
 export const SEED_HIT_RADIUS = 20; // how close a seed must pass to a player to land
@@ -156,6 +167,24 @@ export const BOT_AGGRO_AIM_JITTER_RAD = (32 * Math.PI) / 180;
  * nearestOtherPlayerWithin. */
 export const BOT_TARGET_PLAYER_BIAS = 0.35;
 export const BOT_FLEE_DURATION_MS = 1100; // short "back away" burst, only from being fired at
+/** Bots get more accurate against a juicier (higher-crop) target — up to
+ * BOT_AIM_ACCURACY_BONUS_MAX (25%) more accurate once the TARGET is
+ * carrying BOT_AIM_ACCURACY_FULL_AT_CROPS (300) or more, ramping linearly
+ * below that. Applied as a jitter reduction: at the full bonus, jitter is
+ * divided by 1.25 (20% tighter spread), which is what "25% more accurate"
+ * means here — see jitteredDirectionToward. */
+export const BOT_AIM_ACCURACY_BONUS_MAX = 0.25;
+export const BOT_AIM_ACCURACY_FULL_AT_CROPS = 300;
+/** Whoever's #1 on the leaderboard (see topPlayerId in Room.ts) is a more
+ * attractive target — their distance counts as this fraction of its
+ * actual value in nearestOtherPlayerWithin, stacking multiplicatively on
+ * top of BOT_TARGET_PLAYER_BIAS for a real crowned player (0.35 * 0.7 =
+ * 0.245 effective, i.e. roughly 4x as likely to win the comparison
+ * against an equally-close non-crowned bot) — not a lock, but enough to
+ * actually feel like fighting off a swarm for the crown rather than a
+ * death sentence, especially stacked with the other high-crop handicaps
+ * (speed, crit chance, fire rate). */
+export const BOT_CROWN_TARGET_BIAS = 0.7;
 
 /** New players spawn with this many crops so they're not instantly helpless. */
 export const STARTING_CROPS = 0;
@@ -168,10 +197,12 @@ export const SPAWN_MAX_RADIUS_FRACTION = 0.85;
 export const SPAWN_MIN_SEPARATION = 150; // world units from the nearest other player
 export const SPAWN_MAX_ATTEMPTS = 12;
 
-/** Bots: rooms always feel alive. Real players pull bots in to top the room
- * up to this many total occupants; once real players alone reach it, bots
- * are cleared out to make room. Never spawned in an otherwise-empty room. */
-export const MIN_LOBBY_POPULATION = 8;
+/** Bots: rooms always feel alive. Real players pull in up to this many
+ * fill bots regardless of how few real players there are (so even a
+ * single real player gets the full 9), shrinking only once real+bots
+ * would otherwise exceed MAX_PLAYERS_PER_ROOM — see rebalanceBots. Never
+ * spawned in an otherwise-empty room. */
+export const MAX_BOTS = 9;
 export const BOT_DECISION_INTERVAL_MS = 1200;
 export const BOT_PERCEPTION_RADIUS = 500;
 /** A bot's next target must be at least this far away — otherwise, with
@@ -181,11 +212,12 @@ export const BOT_MIN_TRAVEL_DIST = 60;
 
 /** Arena radius for a room's current total occupancy (real players + fill
  * bots), interpolating between the two fractions above across the
- * [MIN_LOBBY_POPULATION, MAX_PLAYERS_PER_ROOM] range. Occupancy below the
- * floor (shouldn't normally happen — bots top up to it) or above the
- * ceiling both clamp rather than extrapolate. */
+ * [1 + MAX_BOTS, MAX_PLAYERS_PER_ROOM] range -- the smallest a real room
+ * ever gets is one real player plus a full set of bots. Occupancy below
+ * the floor (shouldn't normally happen) or above the ceiling both clamp
+ * rather than extrapolate. */
 export function arenaRadiusForPopulation(totalOccupants: number): number {
-  const floor = MIN_LOBBY_POPULATION;
+  const floor = 1 + MAX_BOTS;
   const ceil = MAX_PLAYERS_PER_ROOM;
   const clamped = Math.max(floor, Math.min(ceil, totalOccupants));
   const t = ceil > floor ? (clamped - floor) / (ceil - floor) : 1;

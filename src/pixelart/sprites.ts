@@ -46,24 +46,41 @@ export function buildAvatarSprite(
   // a mid-stride look — correct while moving, but wrong for a static
   // preview (the avatar picker), where a stride pose just reads as
   // lopsided. Forces both arms to the same height instead.
-  armsLevel: boolean = false
+  armsLevel: boolean = false,
+  // Worn by whoever's #1 on the leaderboard (see topPlayerId in
+  // server/src/Room.ts) — takes over the hat slot entirely, hat or not.
+  crown: boolean = false
 ): PixelMatrix {
   const m = blank();
   const facingSide = direction === "left" || direction === "right";
   const showFace = direction === "down";
 
-  // Hat (optional cosmetic)
-  if (custom.hat) {
+  // Hat / crown (optional cosmetic, same footprint either way)
+  if (crown) {
+    fillRect(m, 4, 1, 8, 1, "crownGold");
+    setCells(
+      m,
+      [
+        [4, 0],
+        [7, 0],
+        [10, 0],
+      ],
+      "crownGold"
+    );
+    setCells(m, [[8, 1]], "crownGoldShine");
+    fillRect(m, 2, 2, 12, 1, "crownGoldDark");
+  } else if (custom.hat) {
     fillRect(m, 4, 0, 8, 2, "hatStraw");
     fillRect(m, 2, 2, 12, 1, "hatStrawDark");
   }
 
-  // Hair (back of head shows more when facing up/away). Without a hat,
-  // hair starts higher (row 1 vs row 3) but must also stand taller to
-  // stay contiguous with the face rect starting at row 5 — otherwise
-  // there's a gap of bare scalp between the hair and the head.
-  const hairTop = custom.hat ? 3 : 1;
-  const hairHeight = direction === "up" ? 5 : custom.hat ? 2 : 4;
+  // Hair (back of head shows more when facing up/away). Without a
+  // hat/crown, hair starts higher (row 1 vs row 3) but must also stand
+  // taller to stay contiguous with the face rect starting at row 5 —
+  // otherwise there's a gap of bare scalp between the hair and the head.
+  const headCovered = crown || custom.hat;
+  const hairTop = headCovered ? 3 : 1;
+  const hairHeight = direction === "up" ? 5 : headCovered ? 2 : 4;
   fillRect(m, 5, hairTop, 6, hairHeight, custom.hairColor);
 
   // Face / skin

@@ -3,15 +3,13 @@ import { View, Text, StyleSheet } from "react-native";
 import { useArenaStore } from "../multiplayer/arenaStore";
 
 export function HUD() {
-  const selfId = useArenaStore((s) => s.selfId);
-  const players = useArenaStore((s) => s.players);
+  const kills = useArenaStore((s) => s.kills);
   const playerCount = useArenaStore((s) => s.playerCount);
-  const crops = selfId ? players[selfId]?.crops ?? 0 : 0;
 
   return (
     <View style={styles.root}>
       <View style={styles.pill}>
-        <Text style={styles.cropCount}>{crops}</Text>
+        <Text style={styles.cropCount}>{kills}</Text>
       </View>
       <View style={styles.pillSmall}>
         <Text style={styles.playerCount}>{playerCount} in lobby</Text>

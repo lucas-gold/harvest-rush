@@ -50,10 +50,10 @@ function handleMessage(msg: ServerMessage) {
       store._setPopped(msg.byName);
       break;
     case "hitConfirm":
-      // Intentionally unused — the shooter used to get a "N crops
-      // scattered" toast here, but landing a hit is now silent; the
-      // floating "-20"/"-30" over the target (seedImpact, below) is
-      // feedback enough.
+      // The "N crops scattered" toast this used to drive is gone (the
+      // floating "-20"/"-30" over the target is feedback enough), but
+      // `eliminated` still drives the HUD kill counter.
+      if (msg.eliminated) store._recordKill();
       break;
     case "seedImpact":
       store._addImpact({ targetId: msg.targetId, amount: msg.amount, crit: msg.crit });

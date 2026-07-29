@@ -12,6 +12,9 @@ interface Props {
    * (one arm up, one down) is correct in motion but reads as lopsided in
    * a static preview like the avatar picker. */
   armsLevel?: boolean;
+  /** Worn by whoever's #1 on the leaderboard — replaces the hat slot
+   * entirely, hat or not. */
+  crown?: boolean;
 }
 
 /** The single source of truth for "what does this player look like" —
@@ -22,6 +25,7 @@ export function AvatarView({
   direction = "down",
   walkFrame = 0,
   armsLevel = false,
+  crown = false,
 }: Props) {
   // Was rebuilt unconditionally on every render — with up to 18 visible
   // players re-rendering at ~25fps, that's a full pixel-matrix rebuild
@@ -31,8 +35,8 @@ export function AvatarView({
   // this exact matrix reference, so a stable matrix here is what actually
   // lets that memoization do anything.
   const matrix = useMemo(
-    () => buildAvatarSprite(direction, walkFrame, customization, armsLevel),
-    [direction, walkFrame, customization, armsLevel]
+    () => buildAvatarSprite(direction, walkFrame, customization, armsLevel, crown),
+    [direction, walkFrame, customization, armsLevel, crown]
   );
   return (
     <View style={{ width: size, height: size, pointerEvents: "none" }}>
