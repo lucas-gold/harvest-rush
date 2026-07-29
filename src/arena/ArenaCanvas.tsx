@@ -325,6 +325,36 @@ export function ArenaCanvas() {
             }}
           >
             <View style={{ width: r * 2, height: r * 2, alignItems: "center", justifyContent: "center" }}>
+              {p.id === topPlayerId && (
+                <>
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.crownAuraOuter,
+                      {
+                        width: r * 3.4,
+                        height: r * 3.4,
+                        borderRadius: r * 1.7,
+                        left: r - r * 1.7,
+                        top: r - r * 1.7,
+                      },
+                    ]}
+                  />
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.crownAuraInner,
+                      {
+                        width: r * 2.6,
+                        height: r * 2.6,
+                        borderRadius: r * 1.3,
+                        left: r - r * 1.3,
+                        top: r - r * 1.3,
+                      },
+                    ]}
+                  />
+                </>
+              )}
               {p.shielded && (
                 <View
                   pointerEvents="none"
@@ -518,6 +548,22 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "rgba(79,195,247,0.9)",
     backgroundColor: "rgba(79,195,247,0.18)",
+  },
+  // Two layered rings around whoever's #1 on the leaderboard (crown
+  // holder) — a wide, faint outer glow plus a tighter, brighter inner
+  // one reads as a soft radiating shine without needing an animation
+  // loop running for it.
+  crownAuraOuter: {
+    position: "absolute",
+    borderWidth: 2,
+    borderColor: "rgba(255,215,0,0.28)",
+    backgroundColor: "rgba(255,215,0,0.08)",
+  },
+  crownAuraInner: {
+    position: "absolute",
+    borderWidth: 2,
+    borderColor: "rgba(255,223,0,0.55)",
+    backgroundColor: "rgba(255,215,0,0.14)",
   },
   nameRow: {
     marginTop: 2,

@@ -55,32 +55,40 @@ export function buildAvatarSprite(
   const facingSide = direction === "left" || direction === "right";
   const showFace = direction === "down";
 
-  // Hat / crown (optional cosmetic, same footprint either way)
+  // Hat / crown (optional cosmetic). The crown gets its own, taller
+  // silhouette (4 rows, three distinct peaks with gaps between them)
+  // instead of sharing the hat's flat 3-row band — that flat band was
+  // exactly what made it read as "just another hat" rather than a crown.
   if (crown) {
-    fillRect(m, 4, 1, 8, 1, "crownGold");
+    fillRect(m, 7, 0, 2, 1, "crownGold"); // center peak, tallest point
     setCells(
       m,
       [
-        [4, 0],
-        [7, 0],
-        [10, 0],
+        [4, 1],
+        [5, 1],
+        [7, 1],
+        [8, 1],
+        [10, 1],
+        [11, 1],
       ],
       "crownGold"
-    );
-    setCells(m, [[8, 1]], "crownGoldShine");
-    fillRect(m, 2, 2, 12, 1, "crownGoldDark");
+    ); // three peaks continuing down, gaps at x=6 and x=9 between them
+    fillRect(m, 4, 2, 8, 1, "crownGold"); // band where the peaks meet
+    setCells(m, [[8, 2]], "crownGoldShine");
+    fillRect(m, 2, 3, 12, 1, "crownGoldDark"); // base trim
   } else if (custom.hat) {
     fillRect(m, 4, 0, 8, 2, "hatStraw");
     fillRect(m, 2, 2, 12, 1, "hatStrawDark");
   }
 
   // Hair (back of head shows more when facing up/away). Without a
-  // hat/crown, hair starts higher (row 1 vs row 3) but must also stand
-  // taller to stay contiguous with the face rect starting at row 5 —
-  // otherwise there's a gap of bare scalp between the hair and the head.
-  const headCovered = crown || custom.hat;
-  const hairTop = headCovered ? 3 : 1;
-  const hairHeight = direction === "up" ? 5 : headCovered ? 2 : 4;
+  // hat/crown, hair starts higher but must also stand taller to stay
+  // contiguous with the face rect starting at row 5 — otherwise there's
+  // a gap of bare scalp between the hair and the head. Facing "up",
+  // hair always extends down to exactly meet the torso at row 8,
+  // whatever hairTop turns out to be.
+  const hairTop = crown ? 4 : custom.hat ? 3 : 1;
+  const hairHeight = direction === "up" ? 8 - hairTop : crown ? 1 : custom.hat ? 2 : 4;
   fillRect(m, 5, hairTop, 6, hairHeight, custom.hairColor);
 
   // Face / skin
