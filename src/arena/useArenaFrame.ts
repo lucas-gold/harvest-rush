@@ -53,14 +53,30 @@ let poofIdCounter = 0;
  * "state" broadcast even when nothing's in flight, unlike crops/
  * seedlings, which use a mutate-in-place + version-counter pattern
  * specifically to avoid this).
+ *
+ * The smoothing math itself runs every animation frame (for accuracy,
+ * ~60x/sec) — it used to do that by allocating a brand-new player object
+ * (id, name, avatar, crops, ...) per player per frame just to update two
+ * numbers, and a brand-new Record to hold them, 60 times a second, for up
+ * to ~40 players. Under sustained heavy play that's real, measured GC
+ * pressure (confirmed via live heap profiling — usedJSHeapSize sawtooth
+ * peaks scale with how much is happening on screen), and V8 GC pauses on
+ * the main thread are exactly what read as choppy/delayed movement. Now
+ * the hot 60fps path only mutates small persistent {x,y} position objects
+ * in place — no allocation at all in the common case. The full snapshot
+ * objects ArenaCanvas actually consumes are only rebuilt at the already-
+ * throttled render rate (~25fps, see RENDER_INTERVAL_MS below), roughly
+ * halving allocation frequency on top of eliminating the per-player
+ * object churn entirely from the 60fps leg.
  */
 export function useArenaFrame(): ArenaFrame {
   const players = useArenaStore((s) => s.players);
   const playersRef = useRef(players);
   playersRef.current = players;
 
-  const renderedPlayersRef = useRef<Record<string, PlayerSnapshot>>(players);
-  const renderedSeedsRef = useRef<Record<string, SeedProjectileSnapshot>>({});
+  const smoothedPosRef = useRef<Record<string, { x: number; y: number }>>({});
+  const smoothedSeedPosRef = useRef<Record<string, { x: number; y: number }>>({});
+  const outputPlayersRef = useRef<Record<string, PlayerSnapshot>>(players);
   const seedsArrayRef = useRef<SeedProjectileSnapshot[]>([]);
   const poofsRef = useRef<Poof[]>([]);
   const [, bump] = useState(0);
@@ -76,44 +92,73 @@ export function useArenaFrame(): ArenaFrame {
       lastFrame = now;
 
       const target = playersRef.current;
-      const renderedPlayers = renderedPlayersRef.current;
+      const smoothedPos = smoothedPosRef.current;
       const posAlpha = 1 - Math.pow(0.5, dt / (POSITION_HALF_LIFE_MS / 1000));
 
-      const nextPlayers: Record<string, PlayerSnapshot> = {};
+      // Prune positions for players who've since left — otherwise this
+      // grows for the lifetime of the tab, one entry per distinct player
+      // (real or bot) ever seen this session.
+      for (const id in smoothedPos) {
+        if (!(id in target)) delete smoothedPos[id];
+      }
       for (const id in target) {
         const t = target[id];
-        const r = renderedPlayers[id];
-        nextPlayers[id] =
-          r ? { ...t, x: r.x + (t.x - r.x) * posAlpha, y: r.y + (t.y - r.y) * posAlpha } : t;
+        const s = smoothedPos[id];
+        if (s) {
+          s.x += (t.x - s.x) * posAlpha;
+          s.y += (t.y - s.y) * posAlpha;
+        } else {
+          smoothedPos[id] = { x: t.x, y: t.y };
+        }
       }
-      renderedPlayersRef.current = nextPlayers;
 
       const targetSeeds = useArenaStore.getState().seeds;
-      const renderedSeeds = renderedSeedsRef.current;
+      const smoothedSeedPos = smoothedSeedPosRef.current;
       const seedAlpha = 1 - Math.pow(0.5, dt / (SEED_HALF_LIFE_MS / 1000));
 
-      const nextSeeds: Record<string, SeedProjectileSnapshot> = {};
-      for (const s of targetSeeds) {
-        const r = renderedSeeds[s.id];
-        nextSeeds[s.id] = r ? { x: r.x + (s.x - r.x) * seedAlpha, y: r.y + (s.y - r.y) * seedAlpha, id: s.id } : s;
-      }
       // A seed present last frame but missing now just landed (hit or
       // planted) — pop a fading "plop" at its last known position instead
-      // of just having it vanish outright.
-      for (const id in renderedSeeds) {
-        if (!(id in nextSeeds)) {
-          const last = renderedSeeds[id];
+      // of just having it vanish outright. Seed counts are small (a
+      // handful in flight at once), so a linear scan per existing entry
+      // is cheap — no need to build a Set of live ids every frame.
+      for (const id in smoothedSeedPos) {
+        if (!targetSeeds.some((s) => s.id === id)) {
+          const last = smoothedSeedPos[id];
           poofsRef.current.push({ id: `poof${poofIdCounter++}`, x: last.x, y: last.y, at: now });
+          delete smoothedSeedPos[id];
+        }
+      }
+      for (const s of targetSeeds) {
+        const sm = smoothedSeedPos[s.id];
+        if (sm) {
+          sm.x += (s.x - sm.x) * seedAlpha;
+          sm.y += (s.y - sm.y) * seedAlpha;
+        } else {
+          smoothedSeedPos[s.id] = { x: s.x, y: s.y };
         }
       }
       if (poofsRef.current.length) {
         poofsRef.current = poofsRef.current.filter((p) => now - p.at < POOF_MAX_AGE_MS);
       }
-      renderedSeedsRef.current = nextSeeds;
-      seedsArrayRef.current = Object.values(nextSeeds);
 
       if (now - lastBump >= RENDER_INTERVAL_MS) {
         lastBump = now;
+
+        const nextPlayers: Record<string, PlayerSnapshot> = {};
+        for (const id in target) {
+          const t = target[id];
+          const s = smoothedPos[id];
+          nextPlayers[id] = { ...t, x: s.x, y: s.y };
+        }
+        outputPlayersRef.current = nextPlayers;
+
+        const nextSeeds: SeedProjectileSnapshot[] = [];
+        for (const id in smoothedSeedPos) {
+          const sm = smoothedSeedPos[id];
+          nextSeeds.push({ id, x: sm.x, y: sm.y });
+        }
+        seedsArrayRef.current = nextSeeds;
+
         bump((n) => (n + 1) % 1_000_000);
       }
 
@@ -124,5 +169,5 @@ export function useArenaFrame(): ArenaFrame {
     return () => cancelAnimationFrame(rafId);
   }, []);
 
-  return { players: renderedPlayersRef.current, seeds: seedsArrayRef.current, poofs: poofsRef.current };
+  return { players: outputPlayersRef.current, seeds: seedsArrayRef.current, poofs: poofsRef.current };
 }

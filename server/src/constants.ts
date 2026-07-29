@@ -25,8 +25,14 @@ export const TICK_MS = 60;
  * little higher than it was pre-removal to compensate for losing that
  * burst-speed utility entirely. */
 export const BASE_SPEED = 164.8; // +3%
-export const MAX_SPEED_PENALTY = 0.4; // biggest players top out 40% slower
-export const SPEED_PENALTY_PER_CROP = 300; // crops to reach the full penalty
+// Ramps linearly from 0 up to MAX_SPEED_PENALTY as crops go from 0 to
+// SPEED_PENALTY_FULL_AT_CROPS, then stays capped beyond that (see
+// speedFor in Room.ts). Previously the ramp's divisor wasn't actually
+// tied to the cap value, so "full penalty" was reached at a much lower
+// crop count than the constant's name implied -- these two now define
+// the same curve they describe.
+export const MAX_SPEED_PENALTY = 0.65; // biggest players top out 65% slower
+export const SPEED_PENALTY_FULL_AT_CROPS = 300; // crops needed to reach the full penalty
 /** Bots have no reaction time, distraction, or aiming imprecision — without
  * a handicap they out-collect any real player just by being mechanically
  * perfect. Slowing them down physically is the most direct lever. Nudged
@@ -106,10 +112,10 @@ export const SEED_HIT_SUPER_CRIT_SHARE = 0.2; // of crits: 80% land CRIT_DROP, 2
 /** Crit chance scales with the TARGET's crop count — the more someone is
  * carrying, the riskier it is to sit on it. At the base rate alone a
  * player with 0 crops still crits 6% of the time; every 100 crops the
- * target is carrying adds another 1.5 percentage points (200 crops ->
- * 6% + 3% = 9%). */
+ * target is carrying adds another 3.5 percentage points (200 crops ->
+ * 6% + 7% = 13%). */
 export const SEED_HIT_CRIT_CHANCE_BASE = 0.06;
-export const SEED_HIT_CRIT_CHANCE_PER_CROP = 0.00015; // 1.5% per 100 crops
+export const SEED_HIT_CRIT_CHANCE_PER_CROP = 0.00035; // 3.5% per 100 crops
 /** A hit's dropped crops land biased toward the shooter, not the victim —
  * otherwise the victim could just immediately re-collect their own drop.
  * 0 = scatters at the victim, 1 = scatters right at the shooter. */

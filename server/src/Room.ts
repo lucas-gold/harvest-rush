@@ -381,7 +381,10 @@ export class Room {
       const aiming = !!aimTarget && now < p.aimUntil;
 
       if (aiming && aimTarget) {
-        // Face the threat regardless of movement, so fire aims correctly.
+        // Face the threat regardless of whether it's actively firing back
+        // or just been noticed — updateBotFiring aims using facingX/Y, so
+        // this needs to stay locked on the threat even while the bot
+        // keeps foraging below, not wherever movement happens to point.
         const tx = aimTarget.x - p.x;
         const ty = aimTarget.y - p.y;
         const tmag = Math.hypot(tx, ty) || 1;
@@ -389,21 +392,20 @@ export class Room {
         p.facingY = ty / tmag;
 
         if (now < p.fleeUntil) {
-          // Only from actually being fired at (see alertNearbyBots /
-          // resolveSeedHit) — a short, capped backing-away burst, not a
-          // full retreat across the map.
+          // Actually being fired at (see alertNearbyBots / resolveSeedHit)
+          // — a short, capped backing-away burst, not a full retreat
+          // across the map. The one case that overrides movement outright.
           const dx = p.x - aimTarget.x;
           const dy = p.y - aimTarget.y;
           const mag = Math.hypot(dx, dy) || 1;
           p.dirX = dx / mag;
           p.dirY = dy / mag;
-        } else {
-          // Just approached, never fired at — hold ground and defend
-          // rather than scattering the instant anyone gets close.
-          p.dirX = 0;
-          p.dirY = 0;
+          continue;
         }
-        continue;
+        // Noticed a threat but hasn't actually been fired at — fall
+        // through to normal crop-targeting movement below instead of
+        // grinding to a halt just because someone (very often another
+        // bot, foraging the same crop-dense patch) is nearby.
       }
 
       // Retarget on arrival, not just on a timer — with crops this dense,
@@ -424,8 +426,11 @@ export class Room {
       if (mag > 4) {
         p.dirX = dx / mag;
         p.dirY = dy / mag;
-        p.facingX = p.dirX;
-        p.facingY = p.dirY;
+        // Don't clobber the threat-locked facing set above while aiming.
+        if (!aiming) {
+          p.facingX = p.dirX;
+          p.facingY = p.dirY;
+        }
       } else {
         p.dirX = 0;
         p.dirY = 0;
@@ -604,7 +609,8 @@ export class Room {
   }
 
   private speedFor(p: InternalPlayer, now: number) {
-    const penalty = Math.min(C.MAX_SPEED_PENALTY, p.crops / C.SPEED_PENALTY_PER_CROP);
+    const rampFraction = Math.min(1, p.crops / C.SPEED_PENALTY_FULL_AT_CROPS);
+    const penalty = rampFraction * C.MAX_SPEED_PENALTY;
     let speed = C.BASE_SPEED * (1 - penalty);
     if (now < p.speedBoostUntil) speed *= C.POWERUP_SPEED_MULTIPLIER;
     return p.isBot ? speed * C.BOT_SPEED_MULTIPLIER : speed;
@@ -761,7 +767,18 @@ export class Room {
 
     const towardX = shooter ? shooter.x : target.x;
     const towardY = shooter ? shooter.y : target.y;
-    this.scatterCropsToward(target.x, target.y, actualDrop, towardX, towardY);
+    const dropCenter = this.scatterCropsToward(target.x, target.y, actualDrop, towardX, towardY);
+
+    // A bot that just landed a hit would otherwise keep heading toward
+    // whatever crop it was already after before the fight — send it after
+    // its own drop instead, so kills actually pay off instead of the
+    // scattered crops just sitting there for someone else (often the
+    // recovering victim) to walk over first.
+    if (shooter && shooter.isBot && actualDrop > 0) {
+      shooter.botTargetX = dropCenter.x;
+      shooter.botTargetY = dropCenter.y;
+      shooter.nextDecisionAt = now + 1200;
+    }
 
     if (eliminated) {
       if (!target.isBot) this.send(target, { t: "popped", byName: shooter?.name ?? seed.ownerName });
@@ -910,7 +927,13 @@ export class Room {
    * halfway across the map) rather than centered on the victim, so the
    * shooter can collect the drop more easily than the victim can just
    * immediately re-collect their own loss. */
-  private scatterCropsToward(x: number, y: number, count: number, towardX: number, towardY: number) {
+  private scatterCropsToward(
+    x: number,
+    y: number,
+    count: number,
+    towardX: number,
+    towardY: number
+  ): { x: number; y: number } {
     const dx = towardX - x;
     const dy = towardY - y;
     const mag = Math.hypot(dx, dy) || 1;
@@ -934,6 +957,7 @@ export class Room {
       this.addCrop(crop);
       this.pendingCropSpawn.push(crop);
     }
+    return { x: centerX, y: centerY };
   }
 
   private flush() {
