@@ -56,26 +56,51 @@ export function buildAvatarSprite(
   const showFace = direction === "down";
 
   // Hat / crown (optional cosmetic). The crown gets its own, taller
-  // silhouette (4 rows, three distinct peaks with gaps between them)
-  // instead of sharing the hat's flat 3-row band — that flat band was
-  // exactly what made it read as "just another hat" rather than a crown.
+  // silhouette (5 rows, a center peak rising a row above the two
+  // flanking ones, gaps between all three) instead of sharing the hat's
+  // flat 3-row band — that flat band was exactly what made it read as
+  // "just another hat" rather than a crown. Sits snug against the head
+  // (no hair band peeking out beneath it, see hairHeight below).
   if (crown) {
-    fillRect(m, 7, 0, 2, 1, "crownGold"); // center peak, tallest point
+    fillRect(m, 7, 0, 2, 1, "crownGold"); // center peak tip — rises above the sides
+    setCells(m, [[7, 1], [8, 1]], "crownGold"); // center peak continues
     setCells(
       m,
       [
         [4, 1],
         [5, 1],
-        [7, 1],
-        [8, 1],
         [10, 1],
         [11, 1],
       ],
       "crownGold"
-    ); // three peaks continuing down, gaps at x=6 and x=9 between them
-    fillRect(m, 4, 2, 8, 1, "crownGold"); // band where the peaks meet
-    setCells(m, [[8, 2]], "crownGoldShine");
-    fillRect(m, 2, 3, 12, 1, "crownGoldDark"); // base trim
+    ); // side peak tops, one row lower than the center
+    setCells(
+      m,
+      [
+        [4, 2],
+        [5, 2],
+        [7, 2],
+        [8, 2],
+        [10, 2],
+        [11, 2],
+      ],
+      "crownGold"
+    ); // all three peaks continue down together, gaps at x=6 and x=9
+    fillRect(m, 4, 3, 8, 1, "crownGold"); // band where the peaks meet
+    fillRect(m, 2, 4, 12, 1, "crownGoldDark"); // base trim
+    // Bright glints scattered across the peaks and band — reads as
+    // shiny/sparkly gold rather than a flat single-tone fill.
+    setCells(
+      m,
+      [
+        [8, 0],
+        [4, 1],
+        [11, 1],
+        [5, 3],
+        [9, 3],
+      ],
+      "crownGoldShine"
+    );
   } else if (custom.hat) {
     fillRect(m, 4, 0, 8, 2, "hatStraw");
     fillRect(m, 2, 2, 12, 1, "hatStrawDark");
@@ -84,11 +109,13 @@ export function buildAvatarSprite(
   // Hair (back of head shows more when facing up/away). Without a
   // hat/crown, hair starts higher but must also stand taller to stay
   // contiguous with the face rect starting at row 5 — otherwise there's
-  // a gap of bare scalp between the hair and the head. Facing "up",
+  // a gap of bare scalp between the hair and the head. The crown sits
+  // snug against the head with no hair band showing beneath it (unlike
+  // the hat's brim), so its trim goes directly to row 5. Facing "up",
   // hair always extends down to exactly meet the torso at row 8,
   // whatever hairTop turns out to be.
-  const hairTop = crown ? 4 : custom.hat ? 3 : 1;
-  const hairHeight = direction === "up" ? 8 - hairTop : crown ? 1 : custom.hat ? 2 : 4;
+  const hairTop = crown ? 5 : custom.hat ? 3 : 1;
+  const hairHeight = direction === "up" ? 8 - hairTop : crown ? 0 : custom.hat ? 2 : 4;
   fillRect(m, 5, hairTop, 6, hairHeight, custom.hairColor);
 
   // Face / skin
