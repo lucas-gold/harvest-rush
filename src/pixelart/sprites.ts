@@ -55,28 +55,28 @@ export function buildAvatarSprite(
   const facingSide = direction === "left" || direction === "right";
   const showFace = direction === "down";
 
-  // Hat / crown (optional cosmetic). The crown gets its own, taller
-  // silhouette (5 rows, a center peak rising a row above the two
-  // flanking ones, gaps between all three) instead of sharing the hat's
-  // flat 3-row band — that flat band was exactly what made it read as
-  // "just another hat" rather than a crown. Sits snug against the head
-  // (no hair band peeking out beneath it, see hairHeight below).
+  // Hat / crown (optional cosmetic). The crown gets its own silhouette:
+  // three equal-height peaks (gaps at x=6 and x=9 between them) rising
+  // straight out of a solid gold base — no separate darker brim/trim
+  // like the hat has, so it doesn't read as "just another hat" with
+  // spikes on top. Sits snug against the head (no hair band peeking out
+  // beneath it, see hairHeight below).
   if (crown) {
-    fillRect(m, 7, 0, 2, 1, "crownGold"); // center peak tip — rises above the sides
-    setCells(m, [[7, 1], [8, 1]], "crownGold"); // center peak continues
     setCells(
       m,
       [
+        [4, 0],
+        [5, 0],
+        [7, 0],
+        [8, 0],
+        [10, 0],
+        [11, 0],
         [4, 1],
         [5, 1],
+        [7, 1],
+        [8, 1],
         [10, 1],
         [11, 1],
-      ],
-      "crownGold"
-    ); // side peak tops, one row lower than the center
-    setCells(
-      m,
-      [
         [4, 2],
         [5, 2],
         [7, 2],
@@ -85,19 +85,18 @@ export function buildAvatarSprite(
         [11, 2],
       ],
       "crownGold"
-    ); // all three peaks continue down together, gaps at x=6 and x=9
-    fillRect(m, 4, 3, 8, 1, "crownGold"); // band where the peaks meet
-    fillRect(m, 2, 4, 12, 1, "crownGoldDark"); // base trim
-    // Bright glints scattered across the peaks and band — reads as
+    ); // three peaks, all the same height
+    fillRect(m, 4, 3, 8, 2, "crownGold"); // solid base the peaks rise from — no separate brim
+    // Bright glints scattered across the peaks and base — reads as
     // shiny/sparkly gold rather than a flat single-tone fill.
     setCells(
       m,
       [
         [8, 0],
-        [4, 1],
-        [11, 1],
+        [4, 0],
+        [11, 0],
         [5, 3],
-        [9, 3],
+        [9, 4],
       ],
       "crownGoldShine"
     );

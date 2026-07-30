@@ -1,6 +1,7 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import { useArenaStore } from "../multiplayer/arenaStore";
+import { PALETTE } from "../theme/palette";
 
 const SIZE = 110;
 
@@ -8,6 +9,10 @@ export function Minimap() {
   const selfId = useArenaStore((s) => s.selfId);
   const players = useArenaStore((s) => s.players);
   const arenaRadius = useArenaStore((s) => s.arenaRadius);
+  const leaderboard = useArenaStore((s) => s.leaderboard);
+  // No crown when everyone's still at 0 -- mirrors the server's own
+  // topPlayerId rule (see Room.ts) and ArenaCanvas's crown logic.
+  const topPlayerId = leaderboard.length > 0 && leaderboard[0].crops > 0 ? leaderboard[0].id : null;
 
   const toLocal = (x: number, y: number) => ({
     left: SIZE / 2 + (x / arenaRadius) * (SIZE / 2 - 4),
@@ -19,6 +24,7 @@ export function Minimap() {
       {Object.values(players).map((p) => {
         const { left, top } = toLocal(p.x, p.y);
         const isSelf = p.id === selfId;
+        const isCrowned = p.id === topPlayerId;
         return (
           <View
             key={p.id}
@@ -30,7 +36,13 @@ export function Minimap() {
                 width: isSelf ? 8 : 4,
                 height: isSelf ? 8 : 4,
                 borderRadius: isSelf ? 4 : 2,
-                backgroundColor: isSelf ? "#fff8e7" : p.isBot ? "rgba(255,255,255,0.4)" : "#e8c14a",
+                backgroundColor: isCrowned
+                  ? PALETTE.crownGold
+                  : isSelf
+                    ? "#fff8e7"
+                    : p.isBot
+                      ? "rgba(255,255,255,0.4)"
+                      : "#e8c14a",
               },
             ]}
           />
