@@ -108,11 +108,28 @@ export function useArenaFrame(): ArenaFrame {
       const smoothedSeedPos = smoothedSeedPosRef.current;
       const seedAlpha = 1 - Math.pow(0.5, dt / (SEED_HALF_LIFE_MS / 1000));
 
-      // A seed present last frame but missing now just landed (hit or
-      // planted) — pop a fading "plop" at its last known position instead
-      // of just having it vanish outright. Seed counts are small (a
-      // handful in flight at once), so a linear scan per existing entry
-      // is cheap — no need to build a Set of live ids every frame.
+      // A hit or seed-vs-seed collision comes with the server's exact
+      // landing (x, y) for the seed(s) involved — poof there directly
+      // instead of at the seed's own smoothed position, which always
+      // trails a bit behind the true position while in flight and would
+      // otherwise read as the seed stopping short of where it landed.
+      // Dropping the entry from smoothedSeedPos here is what keeps the
+      // generic "seed vanished" fallback below from also popping a second,
+      // less accurate poof for the same seed.
+      const landedSeeds = useArenaStore.getState().pendingLandedSeeds;
+      if (landedSeeds.length) {
+        for (const landed of landedSeeds) {
+          delete smoothedSeedPos[landed.seedId];
+          poofsRef.current.push({ id: `poof${poofIdCounter++}`, x: landed.x, y: landed.y, at: now });
+        }
+        useArenaStore.getState()._clearLandedSeeds();
+      }
+
+      // A seed present last frame but missing now just missed and planted
+      // (the only remaining cause once hits/collisions are handled above)
+      // — pop a fading "plop" at its last known position. Seed counts are
+      // small (a handful in flight at once), so a linear scan per existing
+      // entry is cheap — no need to build a Set of live ids every frame.
       for (const id in smoothedSeedPos) {
         if (!targetSeeds.some((s) => s.id === id)) {
           const last = smoothedSeedPos[id];

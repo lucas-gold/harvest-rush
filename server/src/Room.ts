@@ -43,6 +43,10 @@ interface InternalPlayer {
   aimTargetId: string | null;
   aimUntil: number;
   fleeUntil: number;
+  // Brief cooldown before re-checking for an unprovoked aggro lock after
+  // letting a low-crop target go (see BOT_LOW_CROP_LENIENCY_CROPS) —
+  // without it, the next tick's check just re-rolls immediately.
+  nextAggroEligibleAt: number;
   // power-up state — see POWERUP_* in constants.ts. speedBoostUntil/
   // rapidFireUntil/longRangeUntil are 0 when inactive; shielded is a
   // plain flag since it's consumed by a hit rather than expiring on a
@@ -109,6 +113,11 @@ export class Room {
   // sort the leaderboard broadcast uses, and read by
   // nearestOtherPlayerWithin for the crown-target bot bias.
   private topPlayerId: string | null = null;
+  // Crops held by the current #1, regardless of whether that's enough to
+  // count as a real crown (topPlayerId is null at 0) — drives
+  // leaderAggroFraction, which scales overall bot pressure with how far
+  // the match has escalated. Set alongside topPlayerId in flush().
+  private topPlayerCrops = 0;
 
   // Recomputed on join/leave from realPlayerCount() alone — bot count is
   // itself derived from realPlayerCount() (see rebalanceBots), so total
@@ -206,6 +215,7 @@ export class Room {
       aimTargetId: null,
       aimUntil: 0,
       fleeUntil: 0,
+      nextAggroEligibleAt: 0,
       speedBoostUntil: 0,
       rapidFireUntil: 0,
       shielded: false,
@@ -368,6 +378,7 @@ export class Room {
       aimTargetId: null,
       aimUntil: 0,
       fleeUntil: 0,
+      nextAggroEligibleAt: 0,
       speedBoostUntil: 0,
       rapidFireUntil: 0,
       shielded: false,
@@ -382,12 +393,28 @@ export class Room {
 
       // Anyone (bot or real player) just standing nearby is enough to
       // make a bot aim and fire back (a standoff), even without ever
-      // having been shot at.
-      if (!p.aimTargetId || now >= p.aimUntil) {
-        const nearestThreat = this.nearestOtherPlayerWithin(p, C.BOT_AGGRO_APPROACH_RADIUS);
+      // having been shot at. The radius itself grows with how far the
+      // match has escalated (see leaderAggroFraction). Against a target
+      // carrying very few crops, there's a chance the bot lets it go
+      // instead (see BOT_LOW_CROP_LENIENCY_CROPS) — gated by
+      // nextAggroEligibleAt so a skip actually sticks for a bit instead
+      // of re-rolling next tick.
+      if ((!p.aimTargetId || now >= p.aimUntil) && now >= p.nextAggroEligibleAt) {
+        const approachRadius =
+          C.BOT_AGGRO_APPROACH_RADIUS + C.LEADER_AGGRO_APPROACH_RADIUS_BONUS_MAX * this.leaderAggroFraction();
+        const nearestThreat = this.nearestOtherPlayerWithin(p, approachRadius);
         if (nearestThreat) {
-          p.aimTargetId = nearestThreat.id;
-          p.aimUntil = now + C.BOT_AGGRO_AIM_DURATION_MS;
+          const leniencyFraction = Math.max(
+            0,
+            1 - nearestThreat.crops / C.BOT_LOW_CROP_LENIENCY_CROPS
+          );
+          const skipChance = C.BOT_LOW_CROP_LENIENCY_SKIP_CHANCE_MAX * leniencyFraction;
+          if (skipChance > 0 && Math.random() < skipChance) {
+            p.nextAggroEligibleAt = now + C.BOT_DECISION_INTERVAL_MS;
+          } else {
+            p.aimTargetId = nearestThreat.id;
+            p.aimUntil = now + C.BOT_AGGRO_AIM_DURATION_MS;
+          }
         }
       }
 
@@ -482,6 +509,15 @@ export class Room {
     return best;
   }
 
+  /** How far the match has escalated, 0-1, based on the current leader's
+   * crop count (see topPlayerCrops) — used to scale overall bot pressure
+   * (ambient fire chance, approach-aggro radius) up as someone pulls
+   * ahead, on top of the per-target scaling elsewhere (aim accuracy, crit
+   * chance). */
+  private leaderAggroFraction(): number {
+    return Math.min(1, this.topPlayerCrops / C.LEADER_AGGRO_FULL_AT_CROPS);
+  }
+
   private pickBotTarget(p: InternalPlayer): { x: number; y: number } {
     // Always beelining for the literal nearest crop reads as "circling in
     // place" once the field is dense enough that the nearest crop is
@@ -515,29 +551,31 @@ export class Room {
       const aimTarget = p.aimTargetId ? this.players.get(p.aimTargetId) : undefined;
       if (aimTarget && now < p.aimUntil) {
         if (now - p.lastFireAt < C.BOT_AGGRO_FIRE_INTERVAL_MS) continue;
-        const dir = this.jitteredDirectionToward(p, aimTarget);
+        const dir = this.jitteredDirectionToward(p, aimTarget, now);
         this.tryFire(p, now, dir.x, dir.y);
         continue;
       }
 
       if (now < p.nextBotFireCheckAt) continue;
       p.nextBotFireCheckAt = now + C.BOT_FIRE_CHECK_INTERVAL_MS + Math.random() * 1000;
-      if (Math.random() > C.BOT_FIRE_CHANCE) continue;
+      const fireChance = C.BOT_FIRE_CHANCE + C.LEADER_AGGRO_FIRE_CHANCE_BONUS_MAX * this.leaderAggroFraction();
+      if (Math.random() > fireChance) continue;
       const dir = this.centerBiasedDirection(p.x, p.y);
       this.tryFire(p, now, dir.x, dir.y);
     }
   }
 
-  /** Aimed at `target` but with some random spread — bots are reactive,
-   * not perfect shots. The spread tightens (more accurate) the more
-   * crops the target is carrying, capping at a 25% accuracy bonus once
-   * they're holding BOT_AIM_ACCURACY_FULL_AT_CROPS or more — see
-   * BOT_AIM_ACCURACY_BONUS_MAX. */
-  private jitteredDirectionToward(p: InternalPlayer, target: InternalPlayer): { x: number; y: number } {
+  /** Aimed at `target` but with random spread — bots are reactive, not
+   * perfect shots. The spread tightens the more crops the target is
+   * carrying, with no ceiling (see BOT_AIM_ACCURACY_BONUS_PER_CROP), and
+   * widens again while this bot is actively backing away (see
+   * BOT_FLEE_AIM_JITTER_MULTIPLIER) — shooting over your shoulder while
+   * retreating is harder than standing your ground. */
+  private jitteredDirectionToward(p: InternalPlayer, target: InternalPlayer, now: number): { x: number; y: number } {
     const baseAngle = Math.atan2(target.y - p.y, target.x - p.x);
-    const accuracyBonus =
-      C.BOT_AIM_ACCURACY_BONUS_MAX * Math.min(1, target.crops / C.BOT_AIM_ACCURACY_FULL_AT_CROPS);
-    const jitter = C.BOT_AGGRO_AIM_JITTER_RAD / (1 + accuracyBonus);
+    const accuracyBonus = target.crops * C.BOT_AIM_ACCURACY_BONUS_PER_CROP;
+    let jitter = C.BOT_AGGRO_AIM_JITTER_RAD / (1 + accuracyBonus);
+    if (now < p.fleeUntil) jitter *= C.BOT_FLEE_AIM_JITTER_MULTIPLIER;
     const angle = baseAngle + (Math.random() * 2 - 1) * jitter;
     return { x: Math.cos(angle), y: Math.sin(angle) };
   }
@@ -704,10 +742,11 @@ export class Room {
   }
 
   private updateSeedProjectiles(now: number, dt: number) {
-    for (const seed of [...this.seeds.values()]) {
-      const preX = seed.x;
-      const preY = seed.y;
-
+    // This tick's straight-line step for every seed, computed once and
+    // shared between the seed-vs-seed collision pass and the per-seed
+    // resolution pass below — both need the same start/end points.
+    const steps = new Map<string, { preX: number; preY: number; nextX: number; nextY: number; step: number }>();
+    for (const seed of this.seeds.values()) {
       // Ease speed down over the last stretch of the flight instead of
       // travelling at a constant speed and then stopping dead (hit) or
       // vanishing (miss) — slowing into the landing point reads as a real
@@ -722,11 +761,60 @@ export class Room {
         speedMul = 1 - t * t * (1 - C.SEED_MIN_SPEED_FRACTION);
       }
       const stepDist = C.SEED_PROJECTILE_SPEED * speedMul * dt;
-
       const remaining = seed.range - seed.traveled;
       const step = Math.min(stepDist, remaining);
-      const nextX = preX + seed.dirX * step;
-      const nextY = preY + seed.dirY * step;
+      steps.set(seed.id, {
+        preX: seed.x,
+        preY: seed.y,
+        nextX: seed.x + seed.dirX * step,
+        nextY: seed.y + seed.dirY * step,
+        step,
+      });
+    }
+
+    // Two seeds whose paths cross this tick cancel each other out. Seed
+    // counts in flight are always small (a handful per room at once), so
+    // an all-pairs pass here is cheap — no spatial index needed the way
+    // crops/seedlings use one. Closest approach between the two straight-
+    // line steps above, parametrized by the same [0,1] fraction of this
+    // tick for both, since both start/end points span the same real time.
+    const collided = new Set<string>();
+    const allSeeds = [...this.seeds.values()];
+    for (let i = 0; i < allSeeds.length; i++) {
+      const a = allSeeds[i];
+      if (collided.has(a.id)) continue;
+      const sa = steps.get(a.id)!;
+      for (let j = i + 1; j < allSeeds.length; j++) {
+        const b = allSeeds[j];
+        if (collided.has(b.id)) continue;
+        const sb = steps.get(b.id)!;
+        const px = sa.preX - sb.preX;
+        const py = sa.preY - sb.preY;
+        const vx = sa.nextX - sa.preX - (sb.nextX - sb.preX);
+        const vy = sa.nextY - sa.preY - (sb.nextY - sb.preY);
+        const vv = vx * vx + vy * vy;
+        const t = Math.max(0, Math.min(1, vv > 0 ? -(px * vx + py * vy) / vv : 0));
+        const dx = px + vx * t;
+        const dy = py + vy * t;
+        if (dx * dx + dy * dy > C.SEED_COLLISION_RADIUS * C.SEED_COLLISION_RADIUS) continue;
+        collided.add(a.id);
+        collided.add(b.id);
+        const ax = sa.preX + t * (sa.nextX - sa.preX);
+        const ay = sa.preY + t * (sa.nextY - sa.preY);
+        const bx = sb.preX + t * (sb.nextX - sb.preX);
+        const by = sb.preY + t * (sb.nextY - sb.preY);
+        const cx = (ax + bx) / 2;
+        const cy = (ay + by) / 2;
+        this.broadcast({ t: "seedCollision", id1: a.id, id2: b.id, x: cx, y: cy });
+        this.seeds.delete(a.id);
+        this.seeds.delete(b.id);
+        break;
+      }
+    }
+
+    for (const seed of allSeeds) {
+      if (collided.has(seed.id)) continue;
+      const { preX, preY, nextX, nextY, step } = steps.get(seed.id)!;
 
       let hit: InternalPlayer | null = null;
       for (const p of this.players.values()) {
@@ -739,6 +827,8 @@ export class Room {
       }
 
       if (hit) {
+        seed.x = nextX;
+        seed.y = nextY;
         this.resolveSeedHit(seed, hit, now);
         this.seeds.delete(seed.id);
         continue;
@@ -799,7 +889,19 @@ export class Room {
 
     // Broadcast to the whole room, not just the two involved, so the red
     // "-20"/"-30" is visible to anyone nearby watching, not just the pair.
-    this.broadcast({ t: "seedImpact", targetId: target.id, amount: actualDrop, crit });
+    // x/y is the target's own (already known-accurate) position rather
+    // than the seed's — the landing effect should appear exactly on
+    // whoever got hit, and the client would otherwise place it using the
+    // seed's smoothed, lagging rendered position instead.
+    this.broadcast({
+      t: "seedImpact",
+      targetId: target.id,
+      amount: actualDrop,
+      crit,
+      seedId: seed.id,
+      x: target.x,
+      y: target.y,
+    });
 
     const towardX = shooter ? shooter.x : target.x;
     const towardY = shooter ? shooter.y : target.y;
@@ -1015,6 +1117,7 @@ export class Room {
     // No crown when everyone's still at 0 -- an arbitrary "#1 with
     // nothing" at round start isn't a real leader.
     this.topPlayerId = leaderboard.length > 0 && leaderboard[0].crops > 0 ? leaderboard[0].id : null;
+    this.topPlayerCrops = leaderboard.length > 0 ? leaderboard[0].crops : 0;
 
     const seeds: SeedProjectileSnapshot[] = [...this.seeds.values()].map((s) => ({
       id: s.id,

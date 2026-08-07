@@ -19,6 +19,16 @@ export interface DamageImpact {
   at: number;
 }
 
+/** A seed whose flight the server told us ended at an exact (x, y) — a
+ * landed hit or a seed-vs-seed collision. Drained every frame by
+ * useArenaFrame, which pops a poof there directly instead of falling
+ * back to the seed's own last (smoothed, lagging) rendered position. */
+export interface LandedSeed {
+  seedId: string;
+  x: number;
+  y: number;
+}
+
 const IMPACT_MAX_AGE_MS = 2000; // pruned well after the ~1.2s the toast actually renders for
 
 interface ArenaState {
@@ -54,6 +64,9 @@ interface ArenaState {
    * id (not targetId) so more than one can be in flight for the same
    * player at once. Pruned on every add rather than needing a timer. */
   impacts: DamageImpact[];
+  /** Queued by connection.ts on seedImpact/seedCollision, drained by
+   * useArenaFrame — see LandedSeed. */
+  pendingLandedSeeds: LandedSeed[];
   /** Bumped on every power-up pickup (self only) so PowerUpToast can key
    * off it even if the same kind is picked up twice in a row. */
   lastPowerUpPickup: { kind: PowerUpKind; at: number } | null;
@@ -88,6 +101,8 @@ interface ArenaState {
   _setPopped: (byName: string | null) => void;
   _clearPop: () => void;
   _addImpact: (impact: { targetId: string; amount: number; crit: boolean }) => void;
+  _addLandedSeed: (seedId: string, x: number, y: number) => void;
+  _clearLandedSeeds: () => void;
   _setPowerUpPickup: (kind: PowerUpKind) => void;
   _recordKill: () => void;
   _reset: () => void;
@@ -109,6 +124,7 @@ const initial = {
   playerCount: 0,
   lastPop: null as { byName: string | null; at: number } | null,
   impacts: [] as DamageImpact[],
+  pendingLandedSeeds: [] as LandedSeed[],
   lastPowerUpPickup: null as { kind: PowerUpKind; at: number } | null,
   kills: 0,
 };
@@ -218,6 +234,20 @@ export const useArenaStore = create<ArenaState>()((set) => ({
 
   _recordKill: () => set((s) => ({ kills: s.kills + 1 })),
 
+  _addLandedSeed: (seedId, x, y) =>
+    set((s) => ({ pendingLandedSeeds: [...s.pendingLandedSeeds, { seedId, x, y }] })),
+
+  _clearLandedSeeds: () => set({ pendingLandedSeeds: [] }),
+
   _reset: () =>
-    set({ ...initial, crops: {}, seedlings: {}, powerUps: {}, players: {}, seeds: [], impacts: [] }),
+    set({
+      ...initial,
+      crops: {},
+      seedlings: {},
+      powerUps: {},
+      players: {},
+      seeds: [],
+      impacts: [],
+      pendingLandedSeeds: [],
+    }),
 }));

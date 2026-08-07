@@ -104,5 +104,6 @@ export type ServerMessage =
   | { t: "powerUpPickup"; kind: PowerUpKind }
   | { t: "popped"; byName: string | null }
   | { t: "hitConfirm"; targetName: string; targetIsBot: boolean; scattered: number; eliminated: boolean }
-  | { t: "seedImpact"; targetId: string; amount: number; crit: boolean }
+  | { t: "seedImpact"; targetId: string; amount: number; crit: boolean; seedId: string; x: number; y: number }
+  | { t: "seedCollision"; id1: string; id2: string; x: number; y: number }
   | { t: "playerLeft"; id: string };

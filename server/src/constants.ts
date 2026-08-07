@@ -94,8 +94,12 @@ export const FIRE_COOLDOWN_MS = 391;
 export const FIRE_RATE_PENALTY_MAX = 0.5;
 export const FIRE_RATE_PENALTY_FULL_AT_CROPS = 300;
 export const SEED_PROJECTILE_SPEED = 480; // world units / sec, before easing near the end
-export const SEED_RANGE = 220; // world units
+export const SEED_RANGE = 260; // world units
 export const SEED_HIT_RADIUS = 20; // how close a seed must pass to a player to land
+/** Two seeds passing this close to each other cancel each other out —
+ * smaller than SEED_HIT_RADIUS since it's sprite-to-sprite, not
+ * sprite-to-player. See the seed-vs-seed pass in updateSeedProjectiles. */
+export const SEED_COLLISION_RADIUS = 14;
 /** A seed travels at full speed until this fraction of SEED_RANGE, then
  * eases down to SEED_MIN_SPEED_FRACTION of full speed by the time it
  * reaches max range — a constant-velocity dart stopping dead (hit) or
@@ -145,9 +149,37 @@ export const BOT_AGGRO_APPROACH_RADIUS = 160; // another player this close -> ai
 export const BOT_AGGRO_NOTICE_RADIUS = 240; // another player's shot fired this close also aggros the bot
 export const BOT_AGGRO_AIM_DURATION_MS = 3000; // how long a bot keeps aiming/firing after its last trigger
 export const BOT_AGGRO_FIRE_INTERVAL_MS = 850; // faster/more assertive than ambient fire while aiming
-// +/- 32 degrees — wide enough that a bot regularly whiffs, especially
-// at range or against a strafing target, rather than reading as a laser.
-export const BOT_AGGRO_AIM_JITTER_RAD = (32 * Math.PI) / 180;
+// +/- 42 degrees baseline — wide enough that a bot regularly whiffs
+// against a fresh, low-value target, tightening up considerably against
+// one who's stacked real crops (see BOT_AIM_ACCURACY_BONUS_PER_CROP).
+export const BOT_AGGRO_AIM_JITTER_RAD = (42 * Math.PI) / 180;
+/** A bot backing away while still firing (see BOT_FLEE_DURATION_MS) is
+ * shooting back over its shoulder — meaningfully less accurate than one
+ * standing its ground and aiming properly. Multiplies the jitter above
+ * while fleeing. */
+export const BOT_FLEE_AIM_JITTER_MULTIPLIER = 1.7;
+/** A bot noticing someone nearby (see BOT_AGGRO_APPROACH_RADIUS) normally
+ * locks aim unconditionally. Against a target carrying under this many
+ * crops — likely a fresh spawn with little to lose and no crop yet to
+ * fire back with — there's instead a chance the bot lets it go, ramping
+ * from BOT_LOW_CROP_LENIENCY_SKIP_CHANCE_MAX at 0 crops down to 0 by this
+ * threshold. Only applies to this unprovoked case — a bot that's actually
+ * been shot at or hit (see alertNearbyBots / resolveSeedHit) always
+ * reacts regardless of the target's crops. */
+export const BOT_LOW_CROP_LENIENCY_CROPS = 20;
+export const BOT_LOW_CROP_LENIENCY_SKIP_CHANCE_MAX = 0.4;
+/** How dangerous the whole room feels scales with the CURRENT LEADER's
+ * crop count (see topPlayerId in Room.ts), not just each bot's own
+ * target — a match where someone's pulled far ahead should feel tenser
+ * for everyone, not just for whoever's currently heaviest. Ramps linearly
+ * from 0 (leader at 0 crops) to full at this many leader crops, then
+ * holds. */
+export const LEADER_AGGRO_FULL_AT_CROPS = 500;
+/** Added on top of BOT_FIRE_CHANCE at full leader-crop scaling (see
+ * LEADER_AGGRO_FULL_AT_CROPS). */
+export const LEADER_AGGRO_FIRE_CHANCE_BONUS_MAX = 0.15;
+/** Added on top of BOT_AGGRO_APPROACH_RADIUS at full leader-crop scaling. */
+export const LEADER_AGGRO_APPROACH_RADIUS_BONUS_MAX = 60;
 /** When picking which nearby player to aim at, a real player's distance
  * counts as this fraction of its actual value — biasing the choice
  * toward real players without making it absolute. At 0.35, a bot roughly
@@ -157,14 +189,13 @@ export const BOT_AGGRO_AIM_JITTER_RAD = (32 * Math.PI) / 180;
  * nearestOtherPlayerWithin. */
 export const BOT_TARGET_PLAYER_BIAS = 0.35;
 export const BOT_FLEE_DURATION_MS = 1100; // short "back away" burst, only from being fired at
-/** Bots get more accurate against a juicier (higher-crop) target — up to
- * BOT_AIM_ACCURACY_BONUS_MAX (25%) more accurate once the TARGET is
- * carrying BOT_AIM_ACCURACY_FULL_AT_CROPS (300) or more, ramping linearly
- * below that. Applied as a jitter reduction: at the full bonus, jitter is
- * divided by 1.25 (20% tighter spread), which is what "25% more accurate"
- * means here — see jitteredDirectionToward. */
-export const BOT_AIM_ACCURACY_BONUS_MAX = 0.25;
-export const BOT_AIM_ACCURACY_FULL_AT_CROPS = 300;
+/** Bots get more accurate against a juicier (higher-crop) target, with no
+ * ceiling — a target who keeps hoarding crops keeps getting easier to
+ * hit, for as long as they keep hoarding. Applied as a jitter reduction
+ * (see jitteredDirectionToward): jitter is divided by 1 + (crops *
+ * this rate), so e.g. a target carrying 800 crops (0.6 bonus) sees
+ * jitter divided by 1.6. */
+export const BOT_AIM_ACCURACY_BONUS_PER_CROP = 0.00075;
 /** Whoever's #1 on the leaderboard (see topPlayerId in Room.ts) is a more
  * attractive target — their distance counts as this fraction of its
  * actual value in nearestOtherPlayerWithin, stacking multiplicatively on

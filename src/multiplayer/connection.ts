@@ -57,6 +57,11 @@ function handleMessage(msg: ServerMessage) {
       break;
     case "seedImpact":
       store._addImpact({ targetId: msg.targetId, amount: msg.amount, crit: msg.crit });
+      store._addLandedSeed(msg.seedId, msg.x, msg.y);
+      break;
+    case "seedCollision":
+      store._addLandedSeed(msg.id1, msg.x, msg.y);
+      store._addLandedSeed(msg.id2, msg.x, msg.y);
       break;
   }
 }
