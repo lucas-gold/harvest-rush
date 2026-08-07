@@ -67,12 +67,13 @@ export const WORLD_ENTITY_CAP = 2200; // hard safety ceiling on crops+seedlings 
  * moment), there's a small chance it's a power-up instead of a plain
  * crop. Same pickup mechanic as a crop, distinct blue crystal look.
  * Chances are of a maturing seedling, and are independent of each other
- * (checked in order below, first match wins) — 0.45 + 0.21 + 0.27 + 0.27
- * = 1.2% total, ~1 in 83 maturing crops. */
-export const POWERUP_SPEED_CHANCE = 0.0045;
-export const POWERUP_RAPID_FIRE_CHANCE = 0.0021;
-export const POWERUP_SHIELD_CHANCE = 0.0027;
-export const POWERUP_LONG_RANGE_CHANCE = 0.0027;
+ * (checked in order below, first match wins) — 0.39 + 0.18 + 0.24 + 0.24
+ * + 0.2 = 1.25% total, ~1 in 80 maturing crops. */
+export const POWERUP_SPEED_CHANCE = 0.0039;
+export const POWERUP_RAPID_FIRE_CHANCE = 0.0018;
+export const POWERUP_SHIELD_CHANCE = 0.0024;
+export const POWERUP_LONG_RANGE_CHANCE = 0.0024;
+export const POWERUP_DOUBLE_DAMAGE_CHANCE = 0.002;
 export const POWERUP_MAX_ON_MAP = 6; // safety cap — rare, but shouldn't accumulate forever if left uncollected
 export const POWERUP_SPEED_MULTIPLIER = 1.5;
 export const POWERUP_SPEED_DURATION_MS = 15_000;
@@ -82,6 +83,7 @@ export const POWERUP_RAPID_FIRE_DURATION_MS = 7_500;
 export const POWERUP_RAPID_FIRE_COOLDOWN_MS = 180;
 export const POWERUP_LONG_RANGE_DURATION_MS = 15_000;
 export const POWERUP_LONG_RANGE_MULTIPLIER = 2; // double SEED_RANGE while active
+export const POWERUP_DOUBLE_DAMAGE_DURATION_MS = 7_500;
 // Shield has no duration — it's consumed by the next hit, however long
 // that takes, so there's no *_DURATION_MS constant for it.
 
@@ -110,7 +112,15 @@ export const SEED_COLLISION_RADIUS = 14;
  * point reads as a real object settling. */
 export const SEED_DECEL_START_FRACTION = 0.55;
 export const SEED_MIN_SPEED_FRACTION = 0.32;
-export const SEED_HIT_DROP = 25;
+/** A normal (non-crit) hit drops a percentage of the target's own current
+ * crops rather than a flat amount, floored at SEED_HIT_MIN_DROP so a hit
+ * always costs something against a light target. No ceiling — against a
+ * real stack, successive hits keep taking a real bite (this shrinks
+ * geometrically each hit, so it's self-limiting without one), instead of
+ * two loaded players being able to trade the same handful of crops back
+ * and forth indefinitely. */
+export const SEED_HIT_PERCENT = 0.3;
+export const SEED_HIT_MIN_DROP = 20;
 /** A crit drops a random percentage (SEED_HIT_CRIT_PERCENT_MIN to
  * SEED_HIT_CRIT_PERCENT_MAX) of the TARGET's own current crops, clamped
  * to [SEED_HIT_CRIT_MIN_DROP, SEED_HIT_CRIT_MAX_DROP] — proportional to
@@ -125,18 +135,40 @@ export const SEED_HIT_CRIT_MAX_DROP = 160;
 /** Crit chance scales with the TARGET's crop count — the more someone is
  * carrying, the riskier it is to sit on it. At the base rate alone a
  * player with 0 crops still crits 6% of the time; every 100 crops the
- * target is carrying adds another 3.5 percentage points (200 crops ->
- * 6% + 7% = 13%). */
+ * target is carrying adds another 4 percentage points (200 crops ->
+ * 6% + 8% = 14%). */
 export const SEED_HIT_CRIT_CHANCE_BASE = 0.06;
-export const SEED_HIT_CRIT_CHANCE_PER_CROP = 0.00035; // 3.5% per 100 crops
+export const SEED_HIT_CRIT_CHANCE_PER_CROP = 0.0004; // 4% per 100 crops
 /** A hit's dropped crops land biased toward the shooter, not the victim —
  * otherwise the victim could just immediately re-collect their own drop.
  * 0 = scatters at the victim, 1 = scatters right at the shooter. */
 export const HIT_SCATTER_TOWARD_SHOOTER_FRACTION = 0.7;
+/** Only this fraction of a hit's damage actually lands on the ground as
+ * pickupable crops — the rest is destroyed outright. Combat should
+ * genuinely shrink the total crops in play, not just move the same ones
+ * from victim to shooter, or two loaded players can trade the same stack
+ * back and forth indefinitely without either of them ever running out. */
+export const HIT_DROP_SURVIVAL_FRACTION = 0.8;
 /** Grace period after spawning or getting hit before that player can be
  * hit again — prevents an instant second hit from the same or a
  * still-overlapping seed. */
 export const HIT_INVULN_MS = 500;
+
+/** Carrying a real stack slowly leaks crops over time, independent of
+ * combat — a seedling drops at the player's own feet periodically,
+ * removing CROP_LEAK_DROP_AMOUNT crops each time (see updateCropLeak).
+ * Nothing leaks below CROP_LEAK_MIN_CROPS, so a light stack isn't
+ * punished on top of already being an easy combat target. The interval
+ * between drops shortens as crops climb from CROP_LEAK_MIN_CROPS up to
+ * CROP_LEAK_FULL_AT_CROPS, capping at CROP_LEAK_INTERVAL_MIN_MS beyond
+ * that — a bigger stack visibly leaks faster, not just a bigger single
+ * drop, which would either be trivial for a big stack or overwhelming
+ * for a small one. */
+export const CROP_LEAK_MIN_CROPS = 15;
+export const CROP_LEAK_FULL_AT_CROPS = 400;
+export const CROP_LEAK_DROP_AMOUNT = 3;
+export const CROP_LEAK_INTERVAL_MAX_MS = 9000;
+export const CROP_LEAK_INTERVAL_MIN_MS = 3000;
 
 /** Bots take the occasional shot too — sparse, and roughly aimed toward
  * the arena center rather than at a specific target, for a bit of ambient

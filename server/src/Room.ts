@@ -55,6 +55,10 @@ interface InternalPlayer {
   rapidFireUntil: number;
   shielded: boolean;
   longRangeUntil: number;
+  doubleDamageUntil: number;
+  // Next time this player's stack leaks a crop (see updateCropLeak /
+  // CROP_LEAK_* in constants.ts).
+  nextSeedDropAt: number;
 }
 
 interface InternalCrop {
@@ -220,6 +224,8 @@ export class Room {
       rapidFireUntil: 0,
       shielded: false,
       longRangeUntil: 0,
+      doubleDamageUntil: 0,
+      nextSeedDropAt: 0,
     };
     this.players.set(id, player);
     this.recomputeArenaRadius();
@@ -391,6 +397,8 @@ export class Room {
       rapidFireUntil: 0,
       shielded: false,
       longRangeUntil: 0,
+      doubleDamageUntil: 0,
+      nextSeedDropAt: 0,
     };
     this.players.set(id, bot);
   }
@@ -668,6 +676,7 @@ export class Room {
     this.handlePlayerFiring(now);
     this.handleCropPickups();
     this.handlePowerUpPickups(now);
+    this.updateCropLeak(now);
     this.updateSeedlings(now);
     this.spawnAmbientSeedlings();
     this.updateSeedProjectiles(now, dt);
@@ -888,11 +897,17 @@ export class Room {
     const crit = Math.random() < critChance;
     const critPercent =
       C.SEED_HIT_CRIT_PERCENT_MIN + Math.random() * (C.SEED_HIT_CRIT_PERCENT_MAX - C.SEED_HIT_CRIT_PERCENT_MIN);
-    const nominalDrop = crit
+    let nominalDrop = crit
       ? Math.min(C.SEED_HIT_CRIT_MAX_DROP, Math.max(C.SEED_HIT_CRIT_MIN_DROP, Math.round(target.crops * critPercent)))
-      : C.SEED_HIT_DROP;
+      : Math.max(C.SEED_HIT_MIN_DROP, Math.round(target.crops * C.SEED_HIT_PERCENT));
+    if (shooter && now < shooter.doubleDamageUntil) nominalDrop *= 2;
     const eliminated = target.crops < nominalDrop;
     const actualDrop = eliminated ? target.crops : nominalDrop;
+    // Only a fraction of the damage actually lands as pickupable crops —
+    // the rest is destroyed outright (see HIT_DROP_SURVIVAL_FRACTION),
+    // so combat is a real sink instead of just moving the same crops
+    // back and forth between whoever's shooting at each other.
+    const scatterCount = Math.round(actualDrop * C.HIT_DROP_SURVIVAL_FRACTION);
 
     target.invulnUntil = now + C.HIT_INVULN_MS;
 
@@ -924,14 +939,14 @@ export class Room {
 
     const towardX = shooter ? shooter.x : target.x;
     const towardY = shooter ? shooter.y : target.y;
-    const dropCenter = this.scatterCropsToward(target.x, target.y, actualDrop, towardX, towardY);
+    const dropCenter = this.scatterCropsToward(target.x, target.y, scatterCount, towardX, towardY);
 
     // A bot that just landed a hit would otherwise keep heading toward
     // whatever crop it was already after before the fight — send it after
     // its own drop instead, so kills actually pay off instead of the
     // scattered crops just sitting there for someone else (often the
     // recovering victim) to walk over first.
-    if (shooter && shooter.isBot && actualDrop > 0) {
+    if (shooter && shooter.isBot && scatterCount > 0) {
       shooter.botTargetX = dropCenter.x;
       shooter.botTargetY = dropCenter.y;
       shooter.nextDecisionAt = now + 1200;
@@ -949,7 +964,7 @@ export class Room {
         t: "hitConfirm",
         targetName: target.name,
         targetIsBot: target.isBot,
-        scattered: actualDrop,
+        scattered: scatterCount,
         eliminated,
       });
     }
@@ -980,6 +995,27 @@ export class Room {
           p.crops += 1;
         }
       }
+    }
+  }
+
+  /** A real stack slowly leaks crops over time (see CROP_LEAK_* in
+   * constants.ts) — a seedling drops at the player's own feet, same as a
+   * missed shot planting where it lands. Nothing leaks below
+   * CROP_LEAK_MIN_CROPS; the interval between drops shortens as crops
+   * climb toward CROP_LEAK_FULL_AT_CROPS, so a bigger stack visibly leaks
+   * faster rather than just losing a bigger chunk each time. */
+  private updateCropLeak(now: number) {
+    for (const p of this.players.values()) {
+      if (p.crops < C.CROP_LEAK_MIN_CROPS || now < p.nextSeedDropAt) continue;
+      const rampFraction = Math.min(
+        1,
+        (p.crops - C.CROP_LEAK_MIN_CROPS) / (C.CROP_LEAK_FULL_AT_CROPS - C.CROP_LEAK_MIN_CROPS)
+      );
+      const interval =
+        C.CROP_LEAK_INTERVAL_MAX_MS - rampFraction * (C.CROP_LEAK_INTERVAL_MAX_MS - C.CROP_LEAK_INTERVAL_MIN_MS);
+      p.nextSeedDropAt = now + interval;
+      p.crops -= C.CROP_LEAK_DROP_AMOUNT;
+      this.plantSeedling(p.x, p.y, now);
     }
   }
 
@@ -1025,14 +1061,16 @@ export class Room {
    * independent) odds of each kind instead. */
   private rollPowerUpKind(): PowerUpKind | null {
     const roll = Math.random();
-    if (roll < C.POWERUP_SPEED_CHANCE) return "speed";
-    if (roll < C.POWERUP_SPEED_CHANCE + C.POWERUP_RAPID_FIRE_CHANCE) return "rapidFire";
-    if (roll < C.POWERUP_SPEED_CHANCE + C.POWERUP_RAPID_FIRE_CHANCE + C.POWERUP_SHIELD_CHANCE) return "shield";
-    if (
-      roll <
-      C.POWERUP_SPEED_CHANCE + C.POWERUP_RAPID_FIRE_CHANCE + C.POWERUP_SHIELD_CHANCE + C.POWERUP_LONG_RANGE_CHANCE
-    )
-      return "longRange";
+    let threshold = C.POWERUP_SPEED_CHANCE;
+    if (roll < threshold) return "speed";
+    threshold += C.POWERUP_RAPID_FIRE_CHANCE;
+    if (roll < threshold) return "rapidFire";
+    threshold += C.POWERUP_SHIELD_CHANCE;
+    if (roll < threshold) return "shield";
+    threshold += C.POWERUP_LONG_RANGE_CHANCE;
+    if (roll < threshold) return "longRange";
+    threshold += C.POWERUP_DOUBLE_DAMAGE_CHANCE;
+    if (roll < threshold) return "doubleDamage";
     return null;
   }
 
@@ -1059,6 +1097,8 @@ export class Room {
       p.rapidFireUntil = now + C.POWERUP_RAPID_FIRE_DURATION_MS;
     } else if (kind === "longRange") {
       p.longRangeUntil = now + C.POWERUP_LONG_RANGE_DURATION_MS;
+    } else if (kind === "doubleDamage") {
+      p.doubleDamageUntil = now + C.POWERUP_DOUBLE_DAMAGE_DURATION_MS;
     } else {
       p.shielded = true;
     }

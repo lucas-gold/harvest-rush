@@ -52,7 +52,7 @@ export interface SeedProjectileSnapshot {
   y: number;
 }
 
-export type PowerUpKind = "speed" | "rapidFire" | "shield" | "longRange";
+export type PowerUpKind = "speed" | "rapidFire" | "shield" | "longRange" | "doubleDamage";
 
 /** A power-up on the ground — same pickup mechanic as a crop (walk over
  * it), but rare and with an effect on pickup instead of just adding to
