@@ -15,6 +15,7 @@ import { ControlSchemePicker } from "../arena/controls/ControlSchemePicker";
 import { PixelText } from "../theme/PixelText";
 import { FONT_PIXEL_SEMIBOLD } from "../theme/fonts";
 import { usePlayerStore } from "../state/playerStore";
+import { useSessionStore } from "../state/sessionStore";
 import { EntryTrees } from "./EntryTrees";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -24,6 +25,12 @@ export function EntryScreen({ navigation }: Props) {
   const storedName = usePlayerStore((s) => s.name);
   const setName = usePlayerStore((s) => s.setName);
   const [nameInput, setNameInput] = useState(storedName);
+
+  const hasPlayed = useSessionStore((s) => s.hasPlayed);
+  const highestScore = useSessionStore((s) => s.highestScore);
+  const mostKills = useSessionStore((s) => s.mostKills);
+  const totalKills = useSessionStore((s) => s.totalKills);
+  const totalCropsCollected = useSessionStore((s) => s.totalCropsCollected);
 
   const canPlay = nameInput.trim().length > 0;
 
@@ -37,6 +44,15 @@ export function EntryScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.root}>
       <EntryTrees />
+
+      {hasPlayed && (
+        <View style={styles.statsCorner} pointerEvents="none">
+          <PixelText style={styles.statsLine}>Best {highestScore}</PixelText>
+          <PixelText style={styles.statsLine}>Best kills {mostKills}</PixelText>
+          <PixelText style={styles.statsLine}>Total kills {totalKills}</PixelText>
+          <PixelText style={styles.statsLine}>Total crops {totalCropsCollected}</PixelText>
+        </View>
+      )}
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={styles.content}>
           <PixelText style={styles.title}>Harvest Rush</PixelText>
@@ -75,6 +91,18 @@ export function EntryScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#2f5d33" },
   flex: { flex: 1 },
+  statsCorner: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    alignItems: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    gap: 1,
+  },
+  statsLine: { color: "rgba(255,255,255,0.55)", fontSize: 10 },
   content: {
     flexGrow: 1,
     alignItems: "center",

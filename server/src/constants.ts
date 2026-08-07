@@ -119,8 +119,8 @@ export const SEED_HIT_DROP = 25;
  * a plain hit even against someone light and the ceiling keeps a single
  * crit from ever gutting a huge stack outright. */
 export const SEED_HIT_CRIT_PERCENT_MIN = 0.25;
-export const SEED_HIT_CRIT_PERCENT_MAX = 0.5;
-export const SEED_HIT_CRIT_MIN_DROP = 40;
+export const SEED_HIT_CRIT_PERCENT_MAX = 0.4;
+export const SEED_HIT_CRIT_MIN_DROP = 35;
 export const SEED_HIT_CRIT_MAX_DROP = 160;
 /** Crit chance scales with the TARGET's crop count — the more someone is
  * carrying, the riskier it is to sit on it. At the base rate alone a
@@ -204,16 +204,15 @@ export const BOT_FLEE_DURATION_MS = 1100; // short "back away" burst, only from 
  * this rate), so e.g. a target carrying 200 crops (0.5 bonus) sees
  * jitter divided by 1.5. */
 export const BOT_AIM_ACCURACY_BONUS_PER_CROP = 0.0025;
-/** Whoever's #1 on the leaderboard (see topPlayerId in Room.ts) is a more
- * attractive target — their distance counts as this fraction of its
- * actual value in nearestOtherPlayerWithin, stacking multiplicatively on
- * top of BOT_TARGET_PLAYER_BIAS for a real crowned player (0.35 * 0.7 =
- * 0.245 effective, i.e. roughly 4x as likely to win the comparison
- * against an equally-close non-crowned bot) — not a lock, but enough to
- * actually feel like fighting off a swarm for the crown rather than a
- * death sentence, especially stacked with the other high-crop handicaps
- * (speed, crit chance, fire rate). */
-export const BOT_CROWN_TARGET_BIAS = 0.7;
+/** Whoever's #1 on the leaderboard (see topPlayerId in Room.ts) is a
+ * meaningfully more attractive target — their distance counts as this
+ * fraction of its actual value in nearestOtherPlayerWithin, stacking
+ * multiplicatively on top of BOT_TARGET_PLAYER_BIAS for a real crowned
+ * player (0.35 * 0.5 = 0.175 effective, i.e. roughly 5.7x as likely to
+ * win the comparison against an equally-close non-crowned bot) — not a
+ * lock, but a real, felt swarm toward whoever's leading, whether that's a
+ * real player or another bot. */
+export const BOT_CROWN_TARGET_BIAS = 0.5;
 
 /** New players spawn with this many crops so they're not instantly helpless. */
 export const STARTING_CROPS = 0;

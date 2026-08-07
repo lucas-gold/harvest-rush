@@ -13,6 +13,11 @@ interface Props {
 export function PopOverlay({ onPlayAgain, onExit }: Props) {
   const lastPop = useArenaStore((s) => s.lastPop);
   const clearPop = useArenaStore((s) => s._clearPop);
+  // Still this life's final values -- _reset (Play Again / a fresh
+  // connect) is what zeroes these, and that only happens once the player
+  // presses a button below, after this has already rendered.
+  const kills = useArenaStore((s) => s.kills);
+  const highestScore = useArenaStore((s) => s.peakCropsThisLife);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -39,6 +44,10 @@ export function PopOverlay({ onPlayAgain, onExit }: Props) {
           <PixelText weight="semibold" style={styles.subtitle}>
             {lastPop.byName ? `${lastPop.byName} shot you down.` : "Better luck next run."}
           </PixelText>
+          <View style={styles.statsRow}>
+            <PixelText weight="semibold" style={styles.statText}>Kills: {kills}</PixelText>
+            <PixelText weight="semibold" style={styles.statText}>Highest score: {highestScore}</PixelText>
+          </View>
           <Pressable style={styles.button} onPress={() => dismiss(onPlayAgain)}>
             <PixelText style={styles.buttonText}>Play Again</PixelText>
           </Pressable>
@@ -69,6 +78,8 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 24, color: "#3a2010" },
   subtitle: { fontSize: 13, color: "#3a2010", marginTop: 6, textAlign: "center" },
+  statsRow: { flexDirection: "row", gap: 16, marginTop: 12 },
+  statText: { fontSize: 12, color: "#5c3b1e" },
   button: {
     backgroundColor: "#4caf50",
     paddingVertical: 12,

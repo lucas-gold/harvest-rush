@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useSessionStore } from "../state/sessionStore";
 import {
   CropSnapshot,
   LeaderboardEntry,
@@ -74,6 +75,16 @@ interface ArenaState {
    * derived from hitConfirm's `eliminated` flag, reset on every fresh
    * connect (join or Play Again). */
   kills: number;
+  /** Highest crop count this life has held at once — this life's "score,"
+   * distinct from its current crops (which drops on a hit). Reset on
+   * every fresh connect, folded into the persisted session record (see
+   * sessionStore) the moment this life ends. */
+  peakCropsThisLife: number;
+  /** Total crops ever picked up this life, only ever increasing — distinct
+   * from current or peak crops, both of which can drop from a hit. Reset
+   * on every fresh connect, folded into the persisted session record the
+   * moment this life ends. */
+  cropsCollectedThisLife: number;
 
   _setStatus: (status: ConnectionStatus) => void;
   _setWelcome: (payload: {
@@ -127,6 +138,8 @@ const initial = {
   pendingLandedSeeds: [] as LandedSeed[],
   lastPowerUpPickup: null as { kind: PowerUpKind; at: number } | null,
   kills: 0,
+  peakCropsThisLife: 0,
+  cropsCollectedThisLife: 0,
 };
 
 let impactIdCounter = 0;
@@ -160,6 +173,8 @@ export const useArenaStore = create<ArenaState>()((set) => ({
   _applyState: (players, seeds, leaderboard, playerCount, arenaRadius) =>
     set((s) => {
       const next: Record<string, PlayerSnapshot> = {};
+      let peakCropsThisLife = s.peakCropsThisLife;
+      let cropsCollectedThisLife = s.cropsCollectedThisLife;
       for (const p of players) {
         // `p` is a fresh object from JSON.parse on every single network
         // tick (~16.7Hz) — including `avatar`, even though avatar never
@@ -171,8 +186,15 @@ export const useArenaStore = create<ArenaState>()((set) => ({
         const existing = s.players[p.id];
         if (existing) p.avatar = existing.avatar;
         next[p.id] = p;
+        if (p.id === s.selfId) {
+          if (p.crops > peakCropsThisLife) peakCropsThisLife = p.crops;
+          // Only rising deltas count as "collected" -- a hit dropping your
+          // crops shouldn't undo credit for having picked them up.
+          const prevCrops = existing?.crops ?? 0;
+          if (p.crops > prevCrops) cropsCollectedThisLife += p.crops - prevCrops;
+        }
       }
-      return { players: next, seeds, leaderboard, playerCount, arenaRadius };
+      return { players: next, seeds, leaderboard, playerCount, arenaRadius, peakCropsThisLife, cropsCollectedThisLife };
     }),
 
   _addCrops: (crops) =>
@@ -218,7 +240,18 @@ export const useArenaStore = create<ArenaState>()((set) => ({
       return { players };
     }),
 
-  _setPopped: (byName) => set({ lastPop: { byName, at: Date.now() } }),
+  _setPopped: (byName) =>
+    set((s) => {
+      // This life is over -- bank its stats into the persisted session
+      // record now, while they're still this life's final values (the
+      // next _reset, on Play Again or a fresh connect, zeroes them here).
+      useSessionStore.getState().recordGameEnd({
+        kills: s.kills,
+        peakCrops: s.peakCropsThisLife,
+        cropsCollected: s.cropsCollectedThisLife,
+      });
+      return { lastPop: { byName, at: Date.now() } };
+    }),
 
   _clearPop: () => set({ lastPop: null }),
 

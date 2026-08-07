@@ -11,13 +11,6 @@ export interface AvatarCustomization {
   hat: boolean;
 }
 
-export const DEFAULT_CUSTOMIZATION: AvatarCustomization = {
-  skinTone: "skin2",
-  hairColor: "hairBrown",
-  shirtColor: "shirtRed",
-  hat: false,
-};
-
 export const SKIN_OPTIONS: AvatarCustomization["skinTone"][] = ["skin1", "skin2", "skin3", "skin4"];
 export const HAIR_OPTIONS: AvatarCustomization["hairColor"][] = [
   "hairBrown",
