@@ -9,6 +9,12 @@
 export const ARENA_RADIUS_REFERENCE = 1500; // radius at MAX_PLAYERS_PER_ROOM occupants
 export const ARENA_RADIUS_MIN_FRACTION = 0.75; // radius at the smallest realistic occupancy (1 + MAX_BOTS, the floor)
 export const ARENA_RADIUS_MAX_FRACTION = 1.0;
+/** Crops/seedlings spawn within this fraction of the arena radius, not the
+ * full circle — sampling is uniform by area (see randomPointInCircle),
+ * which skews toward the outer edge of whatever radius it's given, so this
+ * needs real headroom below 1.0 to keep a visible buffer between the
+ * outermost crops and the actual boundary. */
+export const CROP_SPAWN_RADIUS_FRACTION = 0.82;
 
 /** Players per room before a new lobby is spun up. Keeps a single tiny VPS
  * comfortable — see server/README.md for the capacity math. */
@@ -174,12 +180,12 @@ export const BOT_LOW_CROP_LENIENCY_SKIP_CHANCE_MAX = 0.4;
  * for everyone, not just for whoever's currently heaviest. Ramps linearly
  * from 0 (leader at 0 crops) to full at this many leader crops, then
  * holds. */
-export const LEADER_AGGRO_FULL_AT_CROPS = 500;
+export const LEADER_AGGRO_FULL_AT_CROPS = 350;
 /** Added on top of BOT_FIRE_CHANCE at full leader-crop scaling (see
  * LEADER_AGGRO_FULL_AT_CROPS). */
-export const LEADER_AGGRO_FIRE_CHANCE_BONUS_MAX = 0.15;
+export const LEADER_AGGRO_FIRE_CHANCE_BONUS_MAX = 0.22;
 /** Added on top of BOT_AGGRO_APPROACH_RADIUS at full leader-crop scaling. */
-export const LEADER_AGGRO_APPROACH_RADIUS_BONUS_MAX = 60;
+export const LEADER_AGGRO_APPROACH_RADIUS_BONUS_MAX = 90;
 /** When picking which nearby player to aim at, a real player's distance
  * counts as this fraction of its actual value — biasing the choice
  * toward real players without making it absolute. At 0.35, a bot roughly
@@ -193,9 +199,9 @@ export const BOT_FLEE_DURATION_MS = 1100; // short "back away" burst, only from 
  * ceiling — a target who keeps hoarding crops keeps getting easier to
  * hit, for as long as they keep hoarding. Applied as a jitter reduction
  * (see jitteredDirectionToward): jitter is divided by 1 + (crops *
- * this rate), so e.g. a target carrying 800 crops (0.6 bonus) sees
- * jitter divided by 1.6. */
-export const BOT_AIM_ACCURACY_BONUS_PER_CROP = 0.00075;
+ * this rate), so e.g. a target carrying 200 crops (0.5 bonus) sees
+ * jitter divided by 1.5. */
+export const BOT_AIM_ACCURACY_BONUS_PER_CROP = 0.0025;
 /** Whoever's #1 on the leaderboard (see topPlayerId in Room.ts) is a more
  * attractive target — their distance counts as this fraction of its
  * actual value in nearestOtherPlayerWithin, stacking multiplicatively on

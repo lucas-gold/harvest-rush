@@ -146,7 +146,7 @@ export class Room {
   private seedInitialCrops() {
     const target = Math.min(C.WORLD_ENTITY_CAP, this.coverageTarget());
     for (let i = 0; i < target; i++) {
-      const { x, y } = randomPointInCircle(this.arenaRadius * 0.95);
+      const { x, y } = randomPointInCircle(this.arenaRadius * C.CROP_SPAWN_RADIUS_FRACTION);
       const crop: InternalCrop = { id: randomId("cr"), x, y };
       this.crops.set(crop.id, crop);
       this.cropGrid.add(crop);
@@ -1065,7 +1065,7 @@ export class Room {
     const now = Date.now();
     for (let i = 0; i < toSpawn; i++) {
       if (this.crops.size + this.seedlings.size >= C.WORLD_ENTITY_CAP) break;
-      const { x, y } = randomPointInCircle(this.arenaRadius * 0.95);
+      const { x, y } = randomPointInCircle(this.arenaRadius * C.CROP_SPAWN_RADIUS_FRACTION);
       this.plantSeedling(x, y, now);
     }
   }
