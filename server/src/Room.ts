@@ -355,8 +355,13 @@ export class Room {
   private spawnBot() {
     const id = randomId("bot");
     const spawn = this.pickSpawnPoint();
+    // Bot names carry a ".bot" suffix (see randomBotName) that the bare
+    // BOT_NAMES pool doesn't -- strip it so the membership check actually
+    // matches instead of silently missing every name.
     const usedNames = new Set(
-      [...this.players.values()].filter((p) => p.isBot).map((p) => p.name)
+      [...this.players.values()]
+        .filter((p) => p.isBot)
+        .map((p) => p.name.replace(/\.bot$/, ""))
     );
     const bot: InternalPlayer = {
       id,
