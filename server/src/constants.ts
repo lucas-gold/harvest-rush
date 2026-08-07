@@ -10,11 +10,8 @@ export const ARENA_RADIUS_REFERENCE = 1500; // radius at MAX_PLAYERS_PER_ROOM oc
 export const ARENA_RADIUS_MIN_FRACTION = 0.75; // radius at the smallest realistic occupancy (1 + MAX_BOTS, the floor)
 export const ARENA_RADIUS_MAX_FRACTION = 1.0;
 /** Crops/seedlings spawn within this fraction of the arena radius, not the
- * full circle — sampling is uniform by area (see randomPointInCircle),
- * which skews toward the outer edge of whatever radius it's given, so this
- * needs real headroom below 1.0 to keep a visible buffer between the
- * outermost crops and the actual boundary. */
-export const CROP_SPAWN_RADIUS_FRACTION = 0.82;
+ * full circle, so a few don't land exactly on the boundary. */
+export const CROP_SPAWN_RADIUS_FRACTION = 0.95;
 
 /** Players per room before a new lobby is spun up. Keeps a single tiny VPS
  * comfortable — see server/README.md for the capacity math. */
@@ -114,12 +111,17 @@ export const SEED_COLLISION_RADIUS = 14;
 export const SEED_DECEL_START_FRACTION = 0.55;
 export const SEED_MIN_SPEED_FRACTION = 0.32;
 export const SEED_HIT_DROP = 25;
-/** Two crit tiers instead of one — a crit rolls again to decide which.
- * SEED_HIT_SUPER_CRIT_SHARE is that second roll: the fraction of crits
- * that land the bigger tier rather than the smaller one. */
-export const SEED_HIT_CRIT_DROP = 35;
-export const SEED_HIT_SUPER_CRIT_DROP = 45;
-export const SEED_HIT_SUPER_CRIT_SHARE = 0.2; // of crits: 80% land CRIT_DROP, 20% land SUPER_CRIT_DROP
+/** A crit drops a random percentage (SEED_HIT_CRIT_PERCENT_MIN to
+ * SEED_HIT_CRIT_PERCENT_MAX) of the TARGET's own current crops, clamped
+ * to [SEED_HIT_CRIT_MIN_DROP, SEED_HIT_CRIT_MAX_DROP] — proportional to
+ * what they're carrying rather than a flat amount, so a crit against a
+ * real stack actually hurts, while the floor keeps it meaningfully above
+ * a plain hit even against someone light and the ceiling keeps a single
+ * crit from ever gutting a huge stack outright. */
+export const SEED_HIT_CRIT_PERCENT_MIN = 0.25;
+export const SEED_HIT_CRIT_PERCENT_MAX = 0.5;
+export const SEED_HIT_CRIT_MIN_DROP = 40;
+export const SEED_HIT_CRIT_MAX_DROP = 160;
 /** Crit chance scales with the TARGET's crop count — the more someone is
  * carrying, the riskier it is to sit on it. At the base rate alone a
  * player with 0 crops still crits 6% of the time; every 100 crops the

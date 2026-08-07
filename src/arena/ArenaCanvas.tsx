@@ -8,7 +8,7 @@ import { PALETTE } from "../theme/palette";
 import { PixelText } from "../theme/PixelText";
 import { BackpackStack } from "./BackpackStack";
 import { FarmField } from "./FarmField";
-import { ZOOM, isInViewport, worldToScreen } from "./camera";
+import { zoomForViewport, isInViewport, worldToScreen } from "./camera";
 import { PLAYER_BASE_RADIUS, directionFromVector } from "./gameMath";
 import { useArenaFrame } from "./useArenaFrame";
 
@@ -30,11 +30,12 @@ const POOF_DURATION_MS = 320;
 //
 // Needs to cover the actual visible viewport, not just a fixed gameplay
 // range: a full-screen desktop window shows a visible half-width of
-// viewportWidth/2/ZOOM world units (see camera.ts) — at a common 1920px
-// window and ZOOM=1.4 that's ~686 units. This doesn't chase every
-// possible monitor width, just pushes it out enough that typical
-// full-screen setups don't see a player near the edge rendering as a dot
-// despite clearly being on screen.
+// viewportWidth/2/zoom world units (see camera.ts) — at a common 1920px
+// window (zoom pinned to the ZOOM baseline above camera.ts's phone-scale
+// threshold) that's ~686 units. This doesn't chase every possible monitor
+// width, just pushes it out enough that typical full-screen setups don't
+// see a player near the edge rendering as a dot despite clearly being on
+// screen.
 const PLAYER_DETAIL_RADIUS = 650;
 // Radius alone doesn't bound worst-case cost: a crowd clustered near
 // spawn can put dozens of players within PLAYER_DETAIL_RADIUS at once.
@@ -43,12 +44,14 @@ const PLAYER_DETAIL_RADIUS = 650;
 // distributed or how large the radius is, while still preferring
 // whoever's actually closest.
 const MAX_FULL_DETAIL_PLAYERS = 18;
-// Zoom is fixed (see ZOOM in camera.ts), but the arena itself grows up to
-// ARENA_RADIUS_REFERENCE with population, and the field is ~40% ground
-// coverage by design — a full, wide arena can still put well over a
-// thousand crop/seedling entities in view at once, each a real native
-// View even when simplified to a dot. Capping to the nearest N (like the
-// player cap above) bounds worst-case cost regardless.
+// Zoom (see zoomForViewport in camera.ts) only ever gets smaller on
+// phone-scale screens, never bigger — so this cap is sized against the
+// desktop baseline zoom and stays valid everywhere. The arena itself
+// grows up to ARENA_RADIUS_REFERENCE with population, and the field is
+// ~40% ground coverage by design — a full, wide arena can still put well
+// over a thousand crop/seedling entities in view at once, each a real
+// native View even when simplified to a dot. Capping to the nearest N
+// (like the player cap above) bounds worst-case cost regardless.
 const MAX_VISIBLE_CROPS = 400;
 const MAX_VISIBLE_SEEDLINGS = 200;
 
@@ -108,8 +111,8 @@ export function ArenaCanvas() {
 
   const self = selfId ? players[selfId] : undefined;
   const camera = useMemo(
-    () => ({ x: self?.x ?? 0, y: self?.y ?? 0, zoom: ZOOM }),
-    [self?.x, self?.y]
+    () => ({ x: self?.x ?? 0, y: self?.y ?? 0, zoom: zoomForViewport(width, height) }),
+    [self?.x, self?.y, width, height]
   );
 
   const walkFrame: 0 | 1 = Math.floor(Date.now() / 150) % 2 === 0 ? 0 : 1;

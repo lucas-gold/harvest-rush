@@ -745,7 +745,15 @@ export class Room {
     // This tick's straight-line step for every seed, computed once and
     // shared between the seed-vs-seed collision pass and the per-seed
     // resolution pass below — both need the same start/end points.
-    const steps = new Map<string, { preX: number; preY: number; nextX: number; nextY: number; step: number }>();
+    const steps = new Map<
+      string,
+      { preX: number; preY: number; nextX: number; nextY: number; step: number; hitWall: boolean }
+    >();
+    // Same boundary a player at rest (zero crops) is clamped to — see
+    // updateMovement — so a shot dies at roughly the same edge a player
+    // standing there would, instead of flying past it toward the true
+    // (invisible) arena bound.
+    const wallRadius = this.arenaRadius - C.PLAYER_BASE_RADIUS;
     for (const seed of this.seeds.values()) {
       // Ease speed down over the last stretch of the flight instead of
       // travelling at a constant speed and then stopping dead (hit) or
@@ -763,13 +771,16 @@ export class Room {
       const stepDist = C.SEED_PROJECTILE_SPEED * speedMul * dt;
       const remaining = seed.range - seed.traveled;
       const step = Math.min(stepDist, remaining);
-      steps.set(seed.id, {
-        preX: seed.x,
-        preY: seed.y,
-        nextX: seed.x + seed.dirX * step,
-        nextY: seed.y + seed.dirY * step,
-        step,
-      });
+      let nextX = seed.x + seed.dirX * step;
+      let nextY = seed.y + seed.dirY * step;
+      let hitWall = false;
+      if (nextX * nextX + nextY * nextY > wallRadius * wallRadius) {
+        const clamped = clampToCircle(nextX, nextY, wallRadius);
+        nextX = clamped.x;
+        nextY = clamped.y;
+        hitWall = true;
+      }
+      steps.set(seed.id, { preX: seed.x, preY: seed.y, nextX, nextY, step, hitWall });
     }
 
     // Two seeds whose paths cross this tick cancel each other out. Seed
@@ -814,7 +825,7 @@ export class Room {
 
     for (const seed of allSeeds) {
       if (collided.has(seed.id)) continue;
-      const { preX, preY, nextX, nextY, step } = steps.get(seed.id)!;
+      const { preX, preY, nextX, nextY, step, hitWall } = steps.get(seed.id)!;
 
       let hit: InternalPlayer | null = null;
       for (const p of this.players.values()) {
@@ -838,8 +849,9 @@ export class Room {
       seed.y = nextY;
       seed.traveled += step;
 
-      if (seed.traveled >= seed.range - 0.01) {
-        // Missed everyone — plants where it lands instead of just vanishing.
+      if (hitWall || seed.traveled >= seed.range - 0.01) {
+        // Missed everyone (or hit the wall) — plants where it lands
+        // instead of just vanishing.
         this.plantSeedling(seed.x, seed.y, now);
         this.seeds.delete(seed.id);
       }
@@ -866,12 +878,11 @@ export class Room {
       C.SEED_HIT_CRIT_CHANCE_BASE + target.crops * C.SEED_HIT_CRIT_CHANCE_PER_CROP
     );
     const crit = Math.random() < critChance;
-    const superCrit = crit && Math.random() < C.SEED_HIT_SUPER_CRIT_SHARE;
-    const nominalDrop = superCrit
-      ? C.SEED_HIT_SUPER_CRIT_DROP
-      : crit
-        ? C.SEED_HIT_CRIT_DROP
-        : C.SEED_HIT_DROP;
+    const critPercent =
+      C.SEED_HIT_CRIT_PERCENT_MIN + Math.random() * (C.SEED_HIT_CRIT_PERCENT_MAX - C.SEED_HIT_CRIT_PERCENT_MIN);
+    const nominalDrop = crit
+      ? Math.min(C.SEED_HIT_CRIT_MAX_DROP, Math.max(C.SEED_HIT_CRIT_MIN_DROP, Math.round(target.crops * critPercent)))
+      : C.SEED_HIT_DROP;
     const eliminated = target.crops < nominalDrop;
     const actualDrop = eliminated ? target.crops : nominalDrop;
 
