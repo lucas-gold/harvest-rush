@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Pressable, StyleSheet, Modal } from "react-native";
+import { View, Text, Pressable, StyleSheet, Modal } from "react-native";
 import * as Haptics from "expo-haptics";
 import { PixelText } from "../theme/PixelText";
 import { useArenaStore } from "../multiplayer/arenaStore";
@@ -45,8 +45,14 @@ export function PopOverlay({ onPlayAgain, onExit }: Props) {
             {lastPop.byName ? `${lastPop.byName} shot you down.` : "Better luck next run."}
           </PixelText>
           <View style={styles.statsRow}>
-            <PixelText weight="semibold" style={styles.statText}>Kills: {kills}</PixelText>
-            <PixelText weight="semibold" style={styles.statText}>Highest score: {highestScore}</PixelText>
+            <View style={styles.statItem}>
+              <PixelText weight="semibold" style={styles.statLabel}>Kills</PixelText>
+              <Text style={styles.statValue}>{kills}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <PixelText weight="semibold" style={styles.statLabel}>High score</PixelText>
+              <Text style={styles.statValue}>{highestScore}</Text>
+            </View>
           </View>
           <Pressable style={styles.button} onPress={() => dismiss(onPlayAgain)}>
             <PixelText style={styles.buttonText}>Play Again</PixelText>
@@ -79,7 +85,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, color: "#3a2010" },
   subtitle: { fontSize: 13, color: "#3a2010", marginTop: 6, textAlign: "center" },
   statsRow: { flexDirection: "row", gap: 16, marginTop: 12 },
-  statText: { fontSize: 12, color: "#5c3b1e" },
+  statItem: { flexDirection: "row", alignItems: "baseline", gap: 4 },
+  statLabel: { fontSize: 12, color: "#5c3b1e" },
+  statValue: { fontSize: 13, color: "#3a2010", fontWeight: "700" },
   button: {
     backgroundColor: "#4caf50",
     paddingVertical: 12,

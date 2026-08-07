@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   View,
+  Text,
   TextInput,
   Pressable,
   StyleSheet,
@@ -47,10 +48,22 @@ export function EntryScreen({ navigation }: Props) {
 
       {hasPlayed && (
         <View style={styles.statsCorner} pointerEvents="none">
-          <PixelText style={styles.statsLine}>Best {highestScore}</PixelText>
-          <PixelText style={styles.statsLine}>Best kills {mostKills}</PixelText>
-          <PixelText style={styles.statsLine}>Total kills {totalKills}</PixelText>
-          <PixelText style={styles.statsLine}>Total crops {totalCropsCollected}</PixelText>
+          <View style={styles.statsRow}>
+            <PixelText style={styles.statsLabel}>High score</PixelText>
+            <Text style={styles.statsValue}>{highestScore}</Text>
+          </View>
+          <View style={styles.statsRow}>
+            <PixelText style={styles.statsLabel}>Most kills</PixelText>
+            <Text style={styles.statsValue}>{mostKills}</Text>
+          </View>
+          <View style={styles.statsRow}>
+            <PixelText style={styles.statsLabel}>Total kills</PixelText>
+            <Text style={styles.statsValue}>{totalKills}</Text>
+          </View>
+          <View style={styles.statsRow}>
+            <PixelText style={styles.statsLabel}>Total crops</PixelText>
+            <Text style={styles.statsValue}>{totalCropsCollected}</Text>
+          </View>
         </View>
       )}
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -102,7 +115,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     gap: 1,
   },
-  statsLine: { color: "rgba(255,255,255,0.55)", fontSize: 10 },
+  statsRow: { flexDirection: "row", alignItems: "baseline", gap: 4 },
+  statsLabel: { color: "rgba(255,255,255,0.55)", fontSize: 10 },
+  statsValue: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "700" },
   content: {
     flexGrow: 1,
     alignItems: "center",

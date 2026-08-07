@@ -355,11 +355,14 @@ export class Room {
   private spawnBot() {
     const id = randomId("bot");
     const spawn = this.pickSpawnPoint();
+    const usedNames = new Set(
+      [...this.players.values()].filter((p) => p.isBot).map((p) => p.name)
+    );
     const bot: InternalPlayer = {
       id,
       ws: null,
       isBot: true,
-      name: randomBotName(),
+      name: randomBotName(usedNames),
       avatar: randomBotAvatar(),
       x: spawn.x,
       y: spawn.y,
