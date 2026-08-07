@@ -47,27 +47,19 @@ let poofIdCounter = 0;
  * changes continuously: smoothed player positions, smoothed seed
  * positions, and "poof" landing effects for seeds that just disappeared
  * (hit a player or reached max range and planted). One hook, one
- * render-triggering bump — not a separate reactive `seeds` store
- * subscription, which used to force a full ArenaCanvas re-render on every
- * single server tick (`seeds` is a brand-new array reference every
- * "state" broadcast even when nothing's in flight, unlike crops/
- * seedlings, which use a mutate-in-place + version-counter pattern
- * specifically to avoid this).
+ * render-triggering bump, decoupled from reading the `seeds` store value
+ * directly (`seeds` is a brand-new array reference on every "state"
+ * broadcast even when nothing's in flight, unlike crops/seedlings, which
+ * use a mutate-in-place + version-counter pattern so a fresh reference
+ * isn't the reactive trigger).
  *
- * The smoothing math itself runs every animation frame (for accuracy,
- * ~60x/sec) — it used to do that by allocating a brand-new player object
- * (id, name, avatar, crops, ...) per player per frame just to update two
- * numbers, and a brand-new Record to hold them, 60 times a second, for up
- * to ~40 players. Under sustained heavy play that's real, measured GC
- * pressure (confirmed via live heap profiling — usedJSHeapSize sawtooth
- * peaks scale with how much is happening on screen), and V8 GC pauses on
- * the main thread are exactly what read as choppy/delayed movement. Now
- * the hot 60fps path only mutates small persistent {x,y} position objects
- * in place — no allocation at all in the common case. The full snapshot
- * objects ArenaCanvas actually consumes are only rebuilt at the already-
- * throttled render rate (~25fps, see RENDER_INTERVAL_MS below), roughly
- * halving allocation frequency on top of eliminating the per-player
- * object churn entirely from the 60fps leg.
+ * The smoothing math runs every animation frame (~60x/sec, for accuracy)
+ * but only mutates small persistent {x,y} position objects in place —
+ * no per-frame allocation of full player/seed objects, which matters
+ * under sustained heavy play with up to ~40 players: V8 GC pauses on the
+ * main thread are exactly what read as choppy/delayed movement. The full
+ * snapshot objects ArenaCanvas actually consumes are only rebuilt at the
+ * throttled render rate (~25fps, see RENDER_INTERVAL_MS below).
  */
 export function useArenaFrame(): ArenaFrame {
   const players = useArenaStore((s) => s.players);

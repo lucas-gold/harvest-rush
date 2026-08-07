@@ -1,9 +1,8 @@
 import { AvatarCustomization } from "./protocol";
 
-// The ".bot" suffix is the "honestly labeled, not a real player" marker
-// (client used to append " (bot)" separately — folded into the name
-// itself instead, so it shows up identically in-arena and on the
-// leaderboard with no special-casing needed).
+// The ".bot" suffix is the "honestly labeled, not a real player" marker,
+// baked directly into the name so it shows up identically in-arena and
+// on the leaderboard with no client-side special-casing needed.
 const BOT_NAMES = ["sprout", "clover", "pip", "hazel", "fern", "basil", "poppy", "sage"];
 
 const SKINS: AvatarCustomization["skinTone"][] = ["skin1", "skin2", "skin3", "skin4"];

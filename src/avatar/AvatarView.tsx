@@ -27,13 +27,13 @@ export function AvatarView({
   armsLevel = false,
   crown = false,
 }: Props) {
-  // Was rebuilt unconditionally on every render — with up to 18 visible
-  // players re-rendering at ~25fps, that's a full pixel-matrix rebuild
-  // (every cell, every filled color) happening hundreds of times a second
-  // for no reason, since direction/walkFrame/customization usually don't
-  // change between consecutive frames. PixelCanvas below is memoized on
-  // this exact matrix reference, so a stable matrix here is what actually
-  // lets that memoization do anything.
+  // Memoized: rebuilding this on every render would mean a full
+  // pixel-matrix rebuild (every cell, every filled color) hundreds of
+  // times a second with up to 18 visible players re-rendering at ~25fps,
+  // even though direction/walkFrame/customization usually don't change
+  // between consecutive frames. PixelCanvas below is memoized on this
+  // exact matrix reference, so a stable matrix here is what actually lets
+  // that memoization do anything.
   const matrix = useMemo(
     () => buildAvatarSprite(direction, walkFrame, customization, armsLevel, crown),
     [direction, walkFrame, customization, armsLevel, crown]

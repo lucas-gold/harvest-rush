@@ -5,9 +5,9 @@ import { blank, fillRect, GRID } from "./builder";
  * grain heads rising out of a soil base. Rendered for every collectible
  * crop on the map (capped to the nearest ~100 or so via CROP_DETAIL_RADIUS
  * in ArenaCanvas, everything past that is a plain dot) — kept deliberately
- * low on filled cells (~30 vs. an earlier ~90) since each one is a real
- * SVG <Rect> and the sprite renders at 20-36px on screen at most, well
- * below where the extra detail would even be visible. */
+ * low on filled cells (~30) since each one is a real SVG <Rect> and the
+ * sprite renders at 20-36px on screen at most, well below where the extra
+ * detail would even be visible. */
 export function buildGroundCropSprite(): PixelMatrix {
   const m = blank();
 
@@ -41,7 +41,7 @@ export function buildSeedlingSprite(): PixelMatrix {
  * ends showing below. Stacked repeatedly (up to MAX_BUNDLES) to build a
  * player's backpack pile, so this one's cell count matters most of all:
  * it's the single most-instantiated sprite in the game (bundles × visible
- * players). Kept to ~20 filled cells, down from ~94. */
+ * players). Kept to ~20 filled cells. */
 export function buildWheatBundleSprite(): PixelMatrix {
   const m = blank();
 
@@ -57,7 +57,7 @@ export function buildWheatBundleSprite(): PixelMatrix {
 
 /** Empty backpack base — always visible on a player's back, even at 0
  * crops; wheat bundles stack above it as their crop count grows. One per
- * visible player, so kept modest too (~24 cells, down from ~65+). */
+ * visible player, so kept modest too (~24 cells). */
 export function buildBackpackSprite(): PixelMatrix {
   const m = blank();
 

@@ -14,33 +14,24 @@ export const ARENA_RADIUS_MAX_FRACTION = 1.0;
  * comfortable — see server/README.md for the capacity math. */
 export const MAX_PLAYERS_PER_ROOM = 40;
 
-/** Simulation + broadcast tick. Client-side smoothing (useSmoothedPlayers)
- * handles perceived choppiness independent of tick rate, so this doesn't
- * need to be pushed as high as it would without that — dialed back from
- * 50ms/20Hz to keep tick cost + outbound bandwidth down at higher crop
- * counts on a <$5/mo box. */
+/** Simulation + broadcast tick. Client-side smoothing (useArenaFrame)
+ * handles perceived choppiness independent of tick rate, keeping this low
+ * enough to bound tick cost and outbound bandwidth on a small box even at
+ * high crop counts. */
 export const TICK_MS = 60;
 
-/** Movement. No more speed boost (see seed combat below) — base is a
- * little higher than it was pre-removal to compensate for losing that
- * burst-speed utility entirely. */
-export const BASE_SPEED = 164.8; // +3%
-// Ramps linearly from 0 up to MAX_SPEED_PENALTY as crops go from 0 to
-// SPEED_PENALTY_FULL_AT_CROPS, then stays capped beyond that (see
-// speedFor in Room.ts). Previously the ramp's divisor wasn't actually
-// tied to the cap value, so "full penalty" was reached at a much lower
-// crop count than the constant's name implied -- these two now define
-// the same curve they describe.
-// 65% read as too slow/boring at high crop counts stacked with the other
-// new crop-scaled handicaps (fire rate, crit chance) -- dialed back.
+/** Movement speed with zero crops carried. */
+export const BASE_SPEED = 164.8;
+/** Speed ramps down linearly from BASE_SPEED as crops carried go from 0
+ * to SPEED_PENALTY_FULL_AT_CROPS, capping at MAX_SPEED_PENALTY beyond
+ * that — see speedFor in Room.ts. */
 export const MAX_SPEED_PENALTY = 0.5; // biggest players top out 50% slower
 export const SPEED_PENALTY_FULL_AT_CROPS = 300; // crops needed to reach the full penalty
-/** Bots have no reaction time, distraction, or aiming imprecision — without
- * a handicap they out-collect any real player just by being mechanically
- * perfect. Slowing them down physically is the most direct lever. Nudged
- * up 5% (0.82 -> 0.861) for a bit more difficulty — aim accuracy was
- * deliberately loosened recently (see BOT_AGGRO_AIM_JITTER_RAD) so speed,
- * not aim, is the lever here. */
+/** Bots have no reaction time, distraction, or aiming imprecision —
+ * without a handicap they out-collect any real player just by being
+ * mechanically perfect. Slowing them down physically is the most direct
+ * lever, leaving aim (see BOT_AGGRO_AIM_JITTER_RAD) reactive rather than
+ * a second handicap stacked on top. */
 export const BOT_SPEED_MULTIPLIER = 0.861;
 
 /** Sizing — radius grows with the sqrt of crop count (area-proportional,
@@ -57,7 +48,7 @@ export const SEEDLING_GROW_MS = 15_000;
  * with population. Each crop/seedling "claims" a personal-space circle of
  * COVERAGE_FOOTPRINT_RADIUS for this purpose — bigger than its sprite so a
  * fully-covered board still reads as scattered plants, not solid noise. */
-export const TARGET_COVERAGE_FRACTION = 0.34; // ~34% of the arena's area (-15% from 0.4)
+export const TARGET_COVERAGE_FRACTION = 0.34; // ~34% of the arena's area
 export const COVERAGE_FOOTPRINT_RADIUS = 24;
 export const SPAWN_MAX_PER_TICK = 14;
 /** Mirrors SPAWN_MAX_PER_TICK, but for the other direction: caps how many
@@ -91,12 +82,11 @@ export const POWERUP_LONG_RANGE_MULTIPLIER = 2; // double SEED_RANGE while activ
 // Shield has no duration — it's consumed by the next hit, however long
 // that takes, so there's no *_DURATION_MS constant for it.
 
-/** PvP: the old "ram into someone" mechanic is gone entirely, replaced by
- * seed combat. Holding the fire button (formerly boost) spends a crop per
- * shot on a cooldown and launches a seed in the player's current facing
- * direction — close-ish range, not point-blank, not cross-map. */
+/** Combat: holding the fire button spends a crop per shot on a cooldown
+ * and launches a seed in the player's current facing direction —
+ * close-ish range, not point-blank, not cross-map. */
 export const SEED_COST_CROPS = 1;
-export const FIRE_COOLDOWN_MS = 391; // 450 / 1.15 — 15% faster fire rate
+export const FIRE_COOLDOWN_MS = 391;
 /** Own fire rate slows down the more crops you're carrying too — up to
  * FIRE_RATE_PENALTY_MAX (50%) slower once you're holding
  * FIRE_RATE_PENALTY_FULL_AT_CROPS (300) or more, ramping linearly below

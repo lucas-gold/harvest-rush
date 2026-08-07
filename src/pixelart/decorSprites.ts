@@ -33,9 +33,9 @@ const APPLE_POOL: [number, number][] = [
 export function buildTreeSprite(variant: number = 0): PixelMatrix {
   const m = blank();
 
-  // Canopy — a symmetric stepped circle (4/8/10/12/12/12/12/10/8/4), taller
-  // relative to its width than before so it reads closer to round rather
-  // than a squashed ellipse.
+  // Canopy — a symmetric stepped circle (4/8/10/12/12/12/12/10/8/4),
+  // tall relative to its width so it reads round rather than a squashed
+  // ellipse.
   fillRect(m, 6, 0, 4, 1, "treeCanopy");
   fillRect(m, 4, 1, 8, 1, "treeCanopy");
   fillRect(m, 3, 2, 10, 1, "treeCanopy");

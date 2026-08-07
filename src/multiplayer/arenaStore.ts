@@ -28,13 +28,12 @@ interface ArenaState {
   players: Record<string, PlayerSnapshot>;
   // Mutated in place, not spread-copied — with coverage-based spawning
   // there can be ~1-2k crops in a room, and a full {...crops} clone on
-  // every single pickup/spawn tick (which happens continuously while
-  // anyone is actively collecting in a field this dense) was the actual
-  // source of "laggy, especially once I collect a crop": real, repeated
-  // large-object cloning and the GC pressure that comes with it, not
-  // rendering cost. cropsVersion/seedlingsVersion are the reactive
-  // trigger instead — bump on every mutation, read the (mutated) data
-  // itself via getState() or a plain selector at render time.
+  // every single pickup/spawn tick (continuous while anyone is actively
+  // collecting in a field this dense) means real, repeated large-object
+  // cloning and the GC pressure that comes with it. cropsVersion/
+  // seedlingsVersion are the reactive trigger instead — bump on every
+  // mutation, read the (mutated) data itself via getState() or a plain
+  // selector at render time.
   crops: Record<string, CropSnapshot>;
   cropsVersion: number;
   seedlings: Record<string, SeedlingSnapshot>;

@@ -50,9 +50,9 @@ function handleMessage(msg: ServerMessage) {
       store._setPopped(msg.byName);
       break;
     case "hitConfirm":
-      // The "N crops scattered" toast this used to drive is gone (the
-      // floating "-20"/"-30" over the target is feedback enough), but
-      // `eliminated` still drives the HUD kill counter.
+      // The floating "-20"/"-30" over the target (seedImpact, below) is
+      // the shooter's feedback for a landed hit; `eliminated` here drives
+      // the HUD kill counter.
       if (msg.eliminated) store._recordKill();
       break;
     case "seedImpact":

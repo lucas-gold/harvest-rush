@@ -1,9 +1,8 @@
 /** Uniform grid index over static (x, y) points, so proximity queries
- * (crop pickup, bot targeting) don't have to linearly scan every crop in
- * the room every tick. With coverage-based spawning now putting up to ~2k
- * crops in a room, that O(players × crops) scan was the dominant cost on
- * a tiny shared-vCPU box — this turns it into "check the handful of cells
- * near you" instead. */
+ * (crop pickup, bot targeting) only check the handful of cells near a
+ * point instead of linearly scanning every crop in the room every tick —
+ * with coverage-based spawning putting up to ~2k crops in a room, an
+ * O(players × crops) scan would be real cost on a tiny shared-vCPU box. */
 export class SpatialGrid<T extends { id: string; x: number; y: number }> {
   private cellSize: number;
   private cells = new Map<string, Map<string, T>>();

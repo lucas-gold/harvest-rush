@@ -21,38 +21,27 @@ const DAMAGE_NUMBER_DURATION_MS = 1100;
 const DAMAGE_NUMBER_RISE_PX = 42;
 const POOF_DURATION_MS = 320;
 
-// Crops/seedlings used to fall back to a plain colored dot beyond a
-// fixed radius, on top of the MAX_VISIBLE_CROPS/SEEDLINGS caps below —
-// originally needed because a full-detail viewport measured ~10,700 SVG
-// shapes at once (a ~370-430ms stall). That's no longer true: once
-// PixelCanvas's memoization actually held (stable zoom, stable sprite
-// matrices — see useArenaFrame and AvatarView) and the count caps landed,
-// measured full-detail-everywhere ran no worse than the radius-limited
-// version under the same load. Dropped the distance check entirely; the
-// count caps alone now bound worst-case cost.
-// Same idea, applied to other players: a full player is an avatar SVG plus
-// a backpack base plus up to MAX_BUNDLES more SVGs for a big one — up to
-// ~10 sprite instances each, and with up to 40 players that's the single
-// largest remaining render cost. Distant players (you're not about to
-// interact with them anyway) collapse to one plain colored dot. Self
-// always renders in full detail regardless of distance (there's only one).
+// A full player is an avatar SVG plus a backpack base plus up to
+// MAX_BUNDLES more SVGs for a big one — up to ~10 sprite instances each,
+// and with up to 40 players that's the single largest render cost.
+// Distant players (not about to interact with them anyway) collapse to
+// one plain colored dot instead. Self always renders in full detail
+// regardless of distance (there's only one).
 //
 // Needs to cover the actual visible viewport, not just a fixed gameplay
 // range: a full-screen desktop window shows a visible half-width of
 // viewportWidth/2/ZOOM world units (see camera.ts) — at a common 1920px
-// window and ZOOM=1.365 that's ~703 units, well past the old 420, which
-// is why players near the edge on a wide screen were still showing as
-// dots despite clearly being on screen. This doesn't chase every
+// window and ZOOM=1.4 that's ~686 units. This doesn't chase every
 // possible monitor width, just pushes it out enough that typical
-// full-screen setups don't see the seam.
+// full-screen setups don't see a player near the edge rendering as a dot
+// despite clearly being on screen.
 const PLAYER_DETAIL_RADIUS = 650;
 // Radius alone doesn't bound worst-case cost: a crowd clustered near
 // spawn can put dozens of players within PLAYER_DETAIL_RADIUS at once.
 // Capping to the nearest N (by actual distance, not render order) keeps
 // per-frame sprite count bounded regardless of how players are
-// distributed, while still preferring whoever's actually closest — so
-// raising the radius above doesn't raise worst-case render cost, it just
-// widens which players are *eligible* to compete for those 18 slots.
+// distributed or how large the radius is, while still preferring
+// whoever's actually closest.
 const MAX_FULL_DETAIL_PLAYERS = 18;
 // Zoom is fixed (see ZOOM in camera.ts), but the arena itself grows up to
 // ARENA_RADIUS_REFERENCE with population, and the field is ~40% ground
@@ -95,15 +84,13 @@ export function ArenaCanvas() {
   // bots are actually biased toward targeting.
   const topPlayerId = leaderboard.length > 0 && leaderboard[0].crops > 0 ? leaderboard[0].id : null;
 
-  // The very first connect measured as a reproducible ~120-170ms main-
-  // thread stall (two back-to-back long tasks right at mount), even with
-  // the LOD caps below already in place — mounting the full-detail sprite
-  // tree (SVG avatars, backpacks, crop matrices) for everything within
-  // range, all in the same commit as the Entry->Arena screen transition,
-  // is just a lot of DOM/SVG node creation to do in one frame. Painting
-  // everything as cheap dots for the first frame and upgrading to full
-  // detail one rAF later splits that into two frames the browser can
-  // actually keep up with, instead of blocking one.
+  // Mounting the full-detail sprite tree (SVG avatars, backpacks, crop
+  // matrices) for everything in range, in the same commit as the
+  // Entry->Arena screen transition, is enough DOM/SVG node creation to
+  // stall the main thread for a couple hundred ms on first connect.
+  // Painting everything as cheap dots for the first frame and upgrading
+  // to full detail one rAF later splits that into two frames the browser
+  // can actually keep up with, instead of blocking one.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setHydrated(true));
