@@ -8,6 +8,15 @@ const client = apiKey
   ? new PostHog(apiKey, { host: process.env.POSTHOG_HOST || "https://us.i.posthog.com" })
   : null;
 
+/** How a session ended, in order of "most deliberate" to "least":
+ * eliminated in combat, an explicit clean disconnect (Exit button, or the
+ * old connection closing right before a Play Again reconnect), the
+ * browser tab/page closing, an abrupt disconnect (network drop, a dead
+ * connection caught by the heartbeat in index.ts, anything without a
+ * clean close code), or the server itself shutting down for a deploy
+ * while the session was still active. */
+export type SessionEndReason = "eliminated" | "left" | "closed_tab" | "disconnected" | "server_restart";
+
 /** One event per completed real-player session, fired from Room.leave.
  * distinctId is normally the client's own persisted PostHog id (see
  * src/analytics.ts on the client, threaded through the "join" message) so
@@ -21,6 +30,7 @@ export function trackSessionEnd(params: {
   joinedAt: number;
   peakCrops: number;
   kills: number;
+  endReason: SessionEndReason;
 }) {
   if (!client) return;
   client.capture({
@@ -32,6 +42,7 @@ export function trackSessionEnd(params: {
       peak_crops: params.peakCrops,
       kills: params.kills,
       joined_at: new Date(params.joinedAt).toISOString(),
+      end_reason: params.endReason,
     },
   });
 }

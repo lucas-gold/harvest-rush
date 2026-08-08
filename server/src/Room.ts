@@ -3,7 +3,7 @@ import * as C from "./constants";
 import { randomId, randomPointInCircle, dist2, clampToCircle, sweptCircleOverlap } from "./util";
 import { randomBotAvatar, randomBotName } from "./bots";
 import { SpatialGrid } from "./SpatialGrid";
-import { trackSessionEnd } from "./analytics";
+import { trackSessionEnd, SessionEndReason } from "./analytics";
 import {
   AvatarCustomization,
   ServerMessage,
@@ -295,7 +295,7 @@ export class Room {
     return best ?? { x: 0, y: 0 };
   }
 
-  leave(id: string) {
+  leave(id: string, reason: SessionEndReason = "disconnected") {
     const player = this.players.get(id);
     if (!player) return;
     this.players.delete(id);
@@ -306,11 +306,21 @@ export class Room {
         joinedAt: player.joinedAt,
         peakCrops: player.peakCrops,
         kills: player.kills,
+        endReason: reason,
       });
     }
     this.broadcast({ t: "playerLeft", id });
     this.recomputeArenaRadius();
     this.rebalanceBots();
+  }
+
+  /** Ends every real player's session with the same reason — used when
+   * the whole server is shutting down (see SIGTERM in index.ts), so a
+   * deploy while people are mid-game still gets a session-end event
+   * instead of that data just disappearing along with the process. */
+  leaveAllReal(reason: SessionEndReason) {
+    const realIds = [...this.players.values()].filter((p) => !p.isBot).map((p) => p.id);
+    for (const id of realIds) this.leave(id, reason);
   }
 
   handleInput(id: string, dirX: number, dirY: number, firing: boolean) {
@@ -985,7 +995,7 @@ export class Room {
     if (eliminated) {
       if (shooter) shooter.kills += 1;
       if (!target.isBot) this.send(target, { t: "popped", byName: shooter?.name ?? seed.ownerName });
-      this.leave(target.id);
+      this.leave(target.id, "eliminated");
     } else {
       target.crops -= actualDrop;
     }

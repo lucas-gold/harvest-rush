@@ -1,5 +1,6 @@
 import { Room } from "./Room";
 import { randomId } from "./util";
+import { SessionEndReason } from "./analytics";
 
 /** Owns every active lobby. Auto-matchmaking is intentionally dumb — first
  * room with space, else spin up a new one — since capacity per box is small
@@ -27,6 +28,13 @@ export class RoomManager {
       room.stop();
       this.rooms.delete(room.id);
     }
+  }
+
+  /** Ends every active real player's session across every room with the
+   * same reason — see Room.leaveAllReal and the SIGTERM handler in
+   * index.ts. */
+  shutdownAll(reason: SessionEndReason) {
+    for (const room of this.rooms.values()) room.leaveAllReal(reason);
   }
 
   stats() {
