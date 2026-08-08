@@ -67,7 +67,10 @@ export interface LeaderboardEntry {
 }
 
 export type ClientMessage =
-  | { t: "join"; name: string; avatar: AvatarCustomization }
+  // analyticsId: this client's own PostHog distinct id (see ../analytics.ts),
+  // so a lobby visit and any games that follow it show up as one person in
+  // PostHog, not disconnected anonymous events.
+  | { t: "join"; name: string; avatar: AvatarCustomization; analyticsId?: string }
   | { t: "input"; dirX: number; dirY: number; firing: boolean };
 
 export type ServerMessage =

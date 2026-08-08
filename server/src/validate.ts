@@ -34,7 +34,8 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
 
   if (m.t === "join") {
     if (typeof m.name !== "string" || !isValidAvatar(m.avatar)) return null;
-    return { t: "join", name: m.name.slice(0, 16), avatar: m.avatar };
+    const analyticsId = typeof m.analyticsId === "string" ? m.analyticsId.slice(0, 200) : undefined;
+    return { t: "join", name: m.name.slice(0, 16), avatar: m.avatar, analyticsId };
   }
   if (m.t === "input") {
     return {

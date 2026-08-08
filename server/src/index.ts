@@ -50,7 +50,7 @@ wss.on("connection", (ws: WebSocket) => {
     if (msg.t === "join") {
       if (state.room) return; // already joined
       const room = roomManager.assignRoom();
-      const playerId = room.join(ws, msg.name, msg.avatar);
+      const playerId = room.join(ws, msg.name, msg.avatar, msg.analyticsId);
       state.room = room;
       state.playerId = playerId;
       return;

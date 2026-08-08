@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { PixelText } from "../theme/PixelText";
 import { FONT_PIXEL_SEMIBOLD } from "../theme/fonts";
 import { usePlayerStore } from "../state/playerStore";
 import { useSessionStore } from "../state/sessionStore";
+import { trackLandedOnLobby } from "../analytics";
 import { EntryTrees } from "./EntryTrees";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -26,6 +27,10 @@ export function EntryScreen({ navigation }: Props) {
   const storedName = usePlayerStore((s) => s.name);
   const setName = usePlayerStore((s) => s.setName);
   const [nameInput, setNameInput] = useState(storedName);
+
+  useEffect(() => {
+    trackLandedOnLobby();
+  }, []);
 
   const hasPlayed = useSessionStore((s) => s.hasPlayed);
   const highestScore = useSessionStore((s) => s.highestScore);

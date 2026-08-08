@@ -62,9 +62,14 @@ interface InternalPlayer {
   nextSeedDropAt: number;
   // Analytics only (see analytics.ts) -- when this session started, the
   // highest crops ever held at once this life, and eliminations landed.
+  // analyticsId is the client's own persisted PostHog id when it sent one
+  // (see the "join" message), so a lobby visit and the games that follow
+  // it link up as one person instead of disconnected anonymous events --
+  // falls back to this player's own per-session id otherwise.
   joinedAt: number;
   peakCrops: number;
   kills: number;
+  analyticsId: string;
 }
 
 interface InternalCrop {
@@ -199,7 +204,7 @@ export class Room {
     }
   }
 
-  join(ws: WebSocket, name: string, avatar: AvatarCustomization): string {
+  join(ws: WebSocket, name: string, avatar: AvatarCustomization, analyticsId?: string): string {
     const id = randomId("p");
     const now = Date.now();
     const player: InternalPlayer = {
@@ -235,6 +240,7 @@ export class Room {
       joinedAt: now,
       peakCrops: C.STARTING_CROPS,
       kills: 0,
+      analyticsId: analyticsId || id,
     };
     this.players.set(id, player);
     this.recomputeArenaRadius();
@@ -295,7 +301,7 @@ export class Room {
     this.players.delete(id);
     if (!player.isBot) {
       trackSessionEnd({
-        playerId: player.id,
+        distinctId: player.analyticsId,
         name: player.name,
         joinedAt: player.joinedAt,
         peakCrops: player.peakCrops,
@@ -422,6 +428,7 @@ export class Room {
       joinedAt: 0,
       peakCrops: 0,
       kills: 0,
+      analyticsId: id,
     };
     this.players.set(id, bot);
   }

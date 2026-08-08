@@ -1,5 +1,6 @@
 import { AvatarCustomization, ClientMessage, ServerMessage } from "./protocol";
 import { useArenaStore } from "./arenaStore";
+import { getAnalyticsId } from "../analytics";
 
 // Defaults to the live deployed server so the app works out of the box
 // without a local server running. Override with EXPO_PUBLIC_ARENA_WS_URL
@@ -75,7 +76,8 @@ export function connectToArena(name: string, avatar: AvatarCustomization, url: s
   socket = ws;
 
   ws.onopen = () => {
-    const join: ClientMessage = { t: "join", name, avatar };
+    const analyticsId = getAnalyticsId();
+    const join: ClientMessage = { t: "join", name, avatar, ...(analyticsId ? { analyticsId } : {}) };
     ws.send(JSON.stringify(join));
   };
   ws.onmessage = (event) => {

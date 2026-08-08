@@ -9,12 +9,14 @@ const client = apiKey
   : null;
 
 /** One event per completed real-player session, fired from Room.leave.
- * distinctId is the player's own per-join id, not their chosen name --
- * there's no account system here, so every session is genuinely a new
- * "person" as far as PostHog is concerned; name is just a property on
- * the event for filtering/display, not an identity. */
+ * distinctId is normally the client's own persisted PostHog id (see
+ * src/analytics.ts on the client, threaded through the "join" message) so
+ * a lobby visit and the games that follow it link up as one person --
+ * falls back to a fresh per-session id for any client that didn't send
+ * one. name is just a property on the event for filtering/display, not
+ * an identity in its own right. */
 export function trackSessionEnd(params: {
-  playerId: string;
+  distinctId: string;
   name: string;
   joinedAt: number;
   peakCrops: number;
@@ -22,7 +24,7 @@ export function trackSessionEnd(params: {
 }) {
   if (!client) return;
   client.capture({
-    distinctId: params.playerId,
+    distinctId: params.distinctId,
     event: "game_session_ended",
     properties: {
       name: params.name,
