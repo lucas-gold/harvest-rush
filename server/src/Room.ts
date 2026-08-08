@@ -3,6 +3,7 @@ import * as C from "./constants";
 import { randomId, randomPointInCircle, dist2, clampToCircle, sweptCircleOverlap } from "./util";
 import { randomBotAvatar, randomBotName } from "./bots";
 import { SpatialGrid } from "./SpatialGrid";
+import { trackSessionEnd } from "./analytics";
 import {
   AvatarCustomization,
   ServerMessage,
@@ -59,6 +60,11 @@ interface InternalPlayer {
   // Next time this player's stack leaks a crop (see updateCropLeak /
   // CROP_LEAK_* in constants.ts).
   nextSeedDropAt: number;
+  // Analytics only (see analytics.ts) -- when this session started, the
+  // highest crops ever held at once this life, and eliminations landed.
+  joinedAt: number;
+  peakCrops: number;
+  kills: number;
 }
 
 interface InternalCrop {
@@ -226,6 +232,9 @@ export class Room {
       longRangeUntil: 0,
       doubleDamageUntil: 0,
       nextSeedDropAt: 0,
+      joinedAt: now,
+      peakCrops: C.STARTING_CROPS,
+      kills: 0,
     };
     this.players.set(id, player);
     this.recomputeArenaRadius();
@@ -281,7 +290,18 @@ export class Room {
   }
 
   leave(id: string) {
-    if (!this.players.delete(id)) return;
+    const player = this.players.get(id);
+    if (!player) return;
+    this.players.delete(id);
+    if (!player.isBot) {
+      trackSessionEnd({
+        playerId: player.id,
+        name: player.name,
+        joinedAt: player.joinedAt,
+        peakCrops: player.peakCrops,
+        kills: player.kills,
+      });
+    }
     this.broadcast({ t: "playerLeft", id });
     this.recomputeArenaRadius();
     this.rebalanceBots();
@@ -399,6 +419,9 @@ export class Room {
       longRangeUntil: 0,
       doubleDamageUntil: 0,
       nextSeedDropAt: 0,
+      joinedAt: 0,
+      peakCrops: 0,
+      kills: 0,
     };
     this.players.set(id, bot);
   }
@@ -953,6 +976,7 @@ export class Room {
     }
 
     if (eliminated) {
+      if (shooter) shooter.kills += 1;
       if (!target.isBot) this.send(target, { t: "popped", byName: shooter?.name ?? seed.ownerName });
       this.leave(target.id);
     } else {
@@ -993,6 +1017,7 @@ export class Room {
           this.removeCrop(crop.id);
           this.pendingCropRemove.push(crop.id);
           p.crops += 1;
+          if (p.crops > p.peakCrops) p.peakCrops = p.crops;
         }
       }
     }

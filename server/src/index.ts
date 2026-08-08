@@ -6,6 +6,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { RoomManager } from "./RoomManager";
 import { parseClientMessage } from "./validate";
 import { Room } from "./Room";
+import { shutdownAnalytics } from "./analytics";
 
 const PORT = Number(process.env.PORT) || 8787;
 // The Expo web export (`expo export --platform web`), if present, is served
@@ -74,4 +75,11 @@ wss.on("connection", (ws: WebSocket) => {
 
 server.listen(PORT, () => {
   console.log(`[server] listening on :${PORT} (ws path: /ws)`);
+});
+
+// Fly sends SIGTERM before killing the old machine on a rolling deploy --
+// flush whatever session-end events haven't gone out yet instead of
+// silently dropping them.
+process.on("SIGTERM", () => {
+  shutdownAnalytics().finally(() => process.exit(0));
 });
