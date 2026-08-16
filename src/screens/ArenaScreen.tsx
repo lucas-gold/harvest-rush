@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { PixelText } from "../theme/PixelText";
@@ -11,8 +11,10 @@ import { InputController } from "../arena/InputController";
 import { PopOverlay } from "../arena/PopOverlay";
 import { PowerUpToast } from "../arena/PowerUpToast";
 import { usePlayerStore } from "../state/playerStore";
+import { useSettingsStore } from "../state/settingsStore";
 import { useArenaStore } from "../multiplayer/arenaStore";
 import { connectToArena, disconnectFromArena } from "../multiplayer/connection";
+import { isTouchPrimaryWeb } from "../web/mobileWebFixes";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Arena">;
@@ -21,7 +23,14 @@ export function ArenaScreen({ navigation }: Props) {
   const name = usePlayerStore((s) => s.name);
   const customization = usePlayerStore((s) => s.customization);
   const status = useArenaStore((s) => s.status);
+  const joystickSide = useSettingsStore((s) => s.joystickSide);
   const insets = useSafeAreaInsets();
+
+  // The on-screen joystick (mobile web only, see InputController) docks in
+  // whichever bottom corner the player picked; the minimap takes the other
+  // one so the two never overlap. Everywhere else (desktop mouse, native)
+  // there's no joystick to make room for, so the minimap just stays put.
+  const minimapOnRight = Platform.OS === "web" && isTouchPrimaryWeb() && joystickSide === "left";
 
   useEffect(() => {
     connectToArena(name || "Farmer", customization);
@@ -55,7 +64,13 @@ export function ArenaScreen({ navigation }: Props) {
         <Leaderboard />
       </View>
 
-      <View style={[styles.minimapWrap, { bottom: insets.bottom + 24, pointerEvents: "none" }]}>
+      <View
+        style={[
+          styles.minimapWrap,
+          minimapOnRight ? { right: 16 } : { left: 16 },
+          { bottom: insets.bottom + 24, pointerEvents: "none" },
+        ]}
+      >
         <Minimap />
       </View>
 
@@ -87,7 +102,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
-  minimapWrap: { position: "absolute", left: 16 },
+  minimapWrap: { position: "absolute" },
   statusOverlay: {
     position: "absolute",
     top: 0,

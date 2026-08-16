@@ -4,6 +4,7 @@ import { useWebControls } from "./controls/useWebControls";
 import { DragFireButtonControls } from "./controls/DragFireButtonControls";
 import { DragDistanceFireControls } from "./controls/DragDistanceFireControls";
 import { DPadFireControls } from "./controls/DPadFireControls";
+import { JoystickControls } from "./controls/JoystickControls";
 import { isTouchPrimaryWeb } from "../web/mobileWebFixes";
 
 export function InputController() {
@@ -11,14 +12,14 @@ export function InputController() {
 
   // Desktop web (real mouse, no touch): mouse position steers, click/space
   // fires, no on-screen button needed. Mobile web (phone browser) has no
-  // mouse — same drag-to-move-plus-fire-button scheme as native touch.
+  // mouse — an on-screen joystick plus tap-anywhere-else-to-fire instead.
   // eslint-disable-next-line react-hooks/rules-of-hooks
   if (Platform.OS === "web" && !isTouchPrimaryWeb()) {
     useWebControls();
     return null;
   }
   if (Platform.OS === "web") {
-    return <DragFireButtonControls />;
+    return <JoystickControls />;
   }
 
   switch (controlScheme) {

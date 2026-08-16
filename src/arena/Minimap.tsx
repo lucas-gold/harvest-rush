@@ -42,7 +42,7 @@ export function Minimap() {
                     ? "#fff8e7"
                     : p.isBot
                       ? "rgba(255,255,255,0.4)"
-                      : "#e8c14a",
+                      : PALETTE.white,
               },
             ]}
           />

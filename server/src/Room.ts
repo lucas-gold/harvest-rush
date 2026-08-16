@@ -4,6 +4,7 @@ import { randomId, randomPointInCircle, dist2, clampToCircle, sweptCircleOverlap
 import { randomBotAvatar, randomBotName } from "./bots";
 import { SpatialGrid } from "./SpatialGrid";
 import { trackSessionEnd, SessionEndReason } from "./analytics";
+import { updateGlobalLeaderboard } from "./leaderboard";
 import {
   AvatarCustomization,
   ServerMessage,
@@ -307,6 +308,12 @@ export class Room {
         peakCrops: player.peakCrops,
         kills: player.kills,
         endReason: reason,
+      });
+      updateGlobalLeaderboard({
+        distinctId: player.analyticsId,
+        name: player.name,
+        peakCrops: player.peakCrops,
+        kills: player.kills,
       });
     }
     this.broadcast({ t: "playerLeft", id });

@@ -8,25 +8,35 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AvatarPicker, OPTION_ROW_WIDTH } from "../avatar/AvatarPicker";
 import { ControlSchemePicker } from "../arena/controls/ControlSchemePicker";
+import { JoystickSideToggle } from "../arena/controls/JoystickSideToggle";
+import { LobbyLeaderboard } from "../leaderboard/LobbyLeaderboard";
 import { PixelText } from "../theme/PixelText";
 import { FONT_PIXEL_SEMIBOLD } from "../theme/fonts";
 import { usePlayerStore } from "../state/playerStore";
 import { useSessionStore } from "../state/sessionStore";
 import { trackLandedOnLobby } from "../analytics";
+import { isTouchPrimaryWeb } from "../web/mobileWebFixes";
 import { EntryTrees } from "./EntryTrees";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Entry">;
 
+// Below this, the leaderboard panel doesn't fit next to the main content
+// without cramping it -- push it below the Play button instead.
+const WIDE_BREAKPOINT = 700;
+
 export function EntryScreen({ navigation }: Props) {
   const storedName = usePlayerStore((s) => s.name);
   const setName = usePlayerStore((s) => s.setName);
   const [nameInput, setNameInput] = useState(storedName);
+  const { width } = useWindowDimensions();
+  const isWide = width >= WIDE_BREAKPOINT;
 
   useEffect(() => {
     trackLandedOnLobby();
@@ -72,34 +82,43 @@ export function EntryScreen({ navigation }: Props) {
         </View>
       )}
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={styles.content}>
-          <PixelText style={styles.title}>Harvest Rush</PixelText>
-          <PixelText weight="semibold" style={styles.subtitle}>
-            Collect crops & grow your score
-          </PixelText>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={[styles.layout, isWide && styles.layoutRow]}>
+            <View style={styles.content}>
+              <PixelText style={styles.title}>Harvest Rush</PixelText>
+              <PixelText weight="semibold" style={styles.subtitle}>
+                Collect crops & grow your score
+              </PixelText>
 
-          <AvatarPicker />
+              <AvatarPicker />
 
-          <TextInput
-            value={nameInput}
-            onChangeText={setNameInput}
-            placeholder="Your name"
-            placeholderTextColor="rgba(255,255,255,0.5)"
-            maxLength={16}
-            style={styles.input}
-            returnKeyType="done"
-            onSubmitEditing={handlePlay}
-          />
+              <TextInput
+                value={nameInput}
+                onChangeText={setNameInput}
+                placeholder="Your name"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                maxLength={16}
+                style={styles.input}
+                returnKeyType="done"
+                onSubmitEditing={handlePlay}
+              />
 
-          <Pressable
-            style={[styles.playButton, !canPlay && styles.playButtonDisabled]}
-            onPress={handlePlay}
-            disabled={!canPlay}
-          >
-            <PixelText style={styles.playButtonText}>Play</PixelText>
-          </Pressable>
+              <Pressable
+                style={[styles.playButton, !canPlay && styles.playButtonDisabled]}
+                onPress={handlePlay}
+                disabled={!canPlay}
+              >
+                <PixelText style={styles.playButtonText}>Play</PixelText>
+              </Pressable>
 
-          {Platform.OS !== "web" && <ControlSchemePicker />}
+              {Platform.OS !== "web" && <ControlSchemePicker />}
+              {Platform.OS === "web" && isTouchPrimaryWeb() && <JoystickSideToggle />}
+            </View>
+
+            <View style={isWide ? styles.leaderboardWide : styles.leaderboardNarrow}>
+              <LobbyLeaderboard />
+            </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -123,14 +142,18 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: "row", alignItems: "baseline", gap: 4 },
   statsLabel: { color: "rgba(255,255,255,0.55)", fontSize: 10 },
   statsValue: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "700" },
-  content: {
+  scrollContent: {
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
     paddingVertical: 24,
-    gap: 14,
   },
+  layout: { alignItems: "center", gap: 20 },
+  layoutRow: { flexDirection: "row", alignItems: "center", gap: 32 },
+  content: { alignItems: "center", gap: 14 },
+  leaderboardWide: {},
+  leaderboardNarrow: { alignItems: "center" },
   title: { fontSize: 34, color: "#fff8e7" },
   subtitle: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 6 },
   input: {

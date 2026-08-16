@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// The global leaderboard is the only collection here. It's read directly
+// by the client (see src/firebase.ts) since it's genuinely public data,
+// same as any other in-game leaderboard. All writes come from the game
+// server via firebase-admin, which authenticates as a service account and
+// bypasses these rules entirely -- there's no path here for a client to
+// write its own (or anyone else's) score.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /leaderboard/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
