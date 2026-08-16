@@ -7,7 +7,7 @@ const MARGIN_SIDE = 24;
 const MARGIN_BOTTOM = 32;
 const OUTER_SIZE = 120;
 const OUTER_RADIUS = OUTER_SIZE / 2;
-const NUB_SIZE = 52;
+const NUB_SIZE = 44;
 // A little more forgiving than the visual ring itself -- grabbing right at
 // or just outside the drawn edge should still pick up the stick, not miss
 // it into a fire-tap.

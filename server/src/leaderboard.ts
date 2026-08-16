@@ -11,30 +11,34 @@ if (serviceAccountJson) {
   db = getFirestore(app);
 }
 
-/** Keeps a single best-ever record per browser (see analyticsId in
- * analytics.ts) in the public "leaderboard" collection the client reads
- * directly -- a later worse run never overwrites a better one, and
- * highScore/kills always describe the same run rather than mixing best-
- * ever numbers from different lives. Skipped entirely for a 0-crop
- * session; nothing worth recording. Best-effort: a Firestore hiccup
- * shouldn't affect gameplay, so failures are swallowed after logging. */
+/** One record per browser (see analyticsId in analytics.ts) in the public
+ * "leaderboard" collection the client reads directly. highScore and
+ * mostKills are each their own running best across every life this
+ * browser has ever played -- a big score in one game and a big kill
+ * count in a different game both count, rather than only whichever run
+ * happened to set the high score. totalCropsCollected is the one
+ * cumulative stat, summed across every life. Skipped entirely for a
+ * 0-crop session; nothing worth recording. Best-effort: a Firestore
+ * hiccup shouldn't affect gameplay, so failures are swallowed after
+ * logging. */
 export async function updateGlobalLeaderboard(params: {
   distinctId: string;
   name: string;
   peakCrops: number;
   kills: number;
+  cropsCollected: number;
 }) {
   if (!db || params.peakCrops <= 0) return;
   const ref = db.collection("leaderboard").doc(params.distinctId);
   try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
-      const existingBest = snap.exists ? (snap.data()!.highScore as number) : 0;
-      if (params.peakCrops <= existingBest) return;
+      const existing = snap.exists ? snap.data()! : { highScore: 0, mostKills: 0, totalCropsCollected: 0 };
       tx.set(ref, {
         name: params.name,
-        highScore: params.peakCrops,
-        kills: params.kills,
+        highScore: Math.max(existing.highScore ?? 0, params.peakCrops),
+        mostKills: Math.max(existing.mostKills ?? 0, params.kills),
+        totalCropsCollected: (existing.totalCropsCollected ?? 0) + params.cropsCollected,
         updatedAt: FieldValue.serverTimestamp(),
       });
     });

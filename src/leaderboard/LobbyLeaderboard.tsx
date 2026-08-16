@@ -3,23 +3,33 @@ import { View, Text, StyleSheet } from "react-native";
 import { collection, doc, getDoc, getDocs, getCountFromServer, limit, orderBy, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { PixelText } from "../theme/PixelText";
-import { PixelCanvas } from "../pixelart/PixelCanvas";
-import { buildSkullIconSprite } from "../pixelart/iconSprites";
 import { getAnalyticsId } from "../analytics";
 
 interface Entry {
   id: string;
   name: string;
   highScore: number;
-  kills: number;
+  mostKills: number;
+  totalCropsCollected: number;
 }
 
-const skullMatrix = buildSkullIconSprite();
+// Defensive defaults, not just a type cast -- a doc written before
+// mostKills/totalCropsCollected existed in the schema won't have them at
+// all, and should read as 0 rather than a blank cell.
+function toEntry(id: string, data: Record<string, unknown>): Entry {
+  return {
+    id,
+    name: typeof data.name === "string" ? data.name : "?",
+    highScore: typeof data.highScore === "number" ? data.highScore : 0,
+    mostKills: typeof data.mostKills === "number" ? data.mostKills : 0,
+    totalCropsCollected: typeof data.totalCropsCollected === "number" ? data.totalCropsCollected : 0,
+  };
+}
 
 /** Global top 10, read directly from Firestore (public data, gated by
  * security rules rather than by hiding the client config — see
- * firestore.rules). Written server-side only, one best-ever run per
- * browser (see updateGlobalLeaderboard in server/src/leaderboard.ts).
+ * firestore.rules). Written server-side only, tracked per browser (see
+ * updateGlobalLeaderboard in server/src/leaderboard.ts).
  *
  * Fails silently (renders nothing) rather than showing a broken panel —
  * a lobby screen with no leaderboard reads fine; one with an error
@@ -34,10 +44,7 @@ export function LobbyLeaderboard() {
     async function load() {
       try {
         const topSnap = await getDocs(query(collection(db, "leaderboard"), orderBy("highScore", "desc"), limit(10)));
-        const topEntries: Entry[] = topSnap.docs.map((d) => {
-          const data = d.data();
-          return { id: d.id, name: data.name, highScore: data.highScore, kills: data.kills };
-        });
+        const topEntries: Entry[] = topSnap.docs.map((d) => toEntry(d.id, d.data()));
         if (cancelled) return;
         setTop(topEntries);
 
@@ -46,8 +53,7 @@ export function LobbyLeaderboard() {
 
         const myDoc = await getDoc(doc(db, "leaderboard", myId));
         if (cancelled || !myDoc.exists()) return;
-        const data = myDoc.data();
-        const myEntry: Entry = { id: myId, name: data.name, highScore: data.highScore, kills: data.kills };
+        const myEntry = toEntry(myId, myDoc.data());
 
         const countSnap = await getCountFromServer(
           query(collection(db, "leaderboard"), where("highScore", ">", myEntry.highScore))
@@ -68,30 +74,40 @@ export function LobbyLeaderboard() {
 
   const myId = getAnalyticsId();
 
-  const row = (rank: number, entry: Entry, highlighted: boolean) => (
-    <View key={entry.id} style={[styles.row, highlighted && styles.rowHighlighted]}>
-      <Text style={[styles.rank, highlighted && styles.highlightedText]}>{rank}</Text>
-      <PixelText weight="semibold" style={[styles.name, highlighted && styles.highlightedText]} numberOfLines={1}>
-        {entry.name}
-      </PixelText>
-      <View style={styles.kills}>
-        <PixelCanvas matrix={skullMatrix} size={9} />
-        <Text style={[styles.killsText, highlighted && styles.highlightedText]}>{entry.kills}</Text>
+  const row = (rank: number, entry: Entry) => {
+    const isFirst = rank === 1;
+    const isSelf = entry.id === myId;
+    const textStyle = isSelf ? styles.selfText : null;
+    return (
+      <View key={entry.id} style={[styles.row, isFirst && styles.rowFirst]}>
+        <Text style={[styles.rank, textStyle]}>{rank}</Text>
+        <PixelText weight={isSelf ? "bold" : "semibold"} style={[styles.name, textStyle]} numberOfLines={1}>
+          {entry.name}
+        </PixelText>
+        <Text style={[styles.stat, styles.score, textStyle]}>{entry.highScore}</Text>
+        <Text style={[styles.stat, textStyle]}>{entry.mostKills}</Text>
+        <Text style={[styles.stat, textStyle]}>{entry.totalCropsCollected}</Text>
       </View>
-      <Text style={[styles.score, highlighted && styles.highlightedText]}>{entry.highScore}</Text>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.root}>
       <PixelText weight="semibold" style={styles.title}>
         Top 10
       </PixelText>
-      {top.map((entry, i) => row(i + 1, entry, entry.id === myId))}
+      <View style={styles.headerRow}>
+        <Text style={[styles.rank, styles.header]}> </Text>
+        <Text style={[styles.name, styles.header]}> </Text>
+        <Text style={[styles.stat, styles.header]}>Score</Text>
+        <Text style={[styles.stat, styles.header]}>Kills</Text>
+        <Text style={[styles.stat, styles.header]}>Crops</Text>
+      </View>
+      {top.map((entry, i) => row(i + 1, entry))}
       {self && (
         <>
           <View style={styles.divider} />
-          {row(self.rank, self.entry, true)}
+          {row(self.rank, self.entry)}
         </>
       )}
     </View>
@@ -100,20 +116,28 @@ export function LobbyLeaderboard() {
 
 const styles = StyleSheet.create({
   root: {
-    width: 220,
+    width: 280,
     backgroundColor: "rgba(0,0,0,0.3)",
     borderRadius: 14,
     padding: 12,
     gap: 2,
   },
   title: { color: "rgba(255,255,255,0.75)", fontSize: 13, marginBottom: 4 },
-  row: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 3, borderRadius: 6 },
-  rowHighlighted: { backgroundColor: "rgba(124,217,122,0.18)", paddingHorizontal: 4 },
-  rank: { color: "rgba(255,255,255,0.5)", fontSize: 12, width: 18 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, marginBottom: 2 },
+  header: { color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700", textAlign: "right" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+  },
+  rowFirst: { backgroundColor: "rgba(255,215,0,0.16)" },
+  rank: { color: "rgba(255,255,255,0.5)", fontSize: 12, width: 16 },
   name: { color: "#fff", fontSize: 13, flex: 1 },
-  kills: { flexDirection: "row", alignItems: "center", gap: 3 },
-  killsText: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: "700", minWidth: 14 },
-  score: { color: "#e8c14a", fontSize: 13, fontWeight: "700", minWidth: 32, textAlign: "right" },
-  highlightedText: { color: "#7bd97a" },
+  stat: { color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "700", width: 40, textAlign: "right" },
+  score: { color: "#e8c14a" },
+  selfText: { color: "#7bd97a", fontWeight: "800" },
   divider: { height: 1, backgroundColor: "rgba(255,255,255,0.12)", marginVertical: 4 },
 });

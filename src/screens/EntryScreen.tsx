@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   View,
-  Text,
   TextInput,
   Pressable,
   StyleSheet,
@@ -19,7 +18,6 @@ import { LobbyLeaderboard } from "../leaderboard/LobbyLeaderboard";
 import { PixelText } from "../theme/PixelText";
 import { FONT_PIXEL_SEMIBOLD } from "../theme/fonts";
 import { usePlayerStore } from "../state/playerStore";
-import { useSessionStore } from "../state/sessionStore";
 import { trackLandedOnLobby } from "../analytics";
 import { isTouchPrimaryWeb } from "../web/mobileWebFixes";
 import { EntryTrees } from "./EntryTrees";
@@ -42,12 +40,6 @@ export function EntryScreen({ navigation }: Props) {
     trackLandedOnLobby();
   }, []);
 
-  const hasPlayed = useSessionStore((s) => s.hasPlayed);
-  const highestScore = useSessionStore((s) => s.highestScore);
-  const mostKills = useSessionStore((s) => s.mostKills);
-  const totalKills = useSessionStore((s) => s.totalKills);
-  const totalCropsCollected = useSessionStore((s) => s.totalCropsCollected);
-
   const canPlay = nameInput.trim().length > 0;
 
   const handlePlay = () => {
@@ -61,63 +53,48 @@ export function EntryScreen({ navigation }: Props) {
     <SafeAreaView style={styles.root}>
       <EntryTrees />
 
-      {hasPlayed && (
-        <View style={styles.statsCorner} pointerEvents="none">
-          <View style={styles.statsRow}>
-            <PixelText style={styles.statsLabel}>High score</PixelText>
-            <Text style={styles.statsValue}>{highestScore}</Text>
-          </View>
-          <View style={styles.statsRow}>
-            <PixelText style={styles.statsLabel}>Most kills</PixelText>
-            <Text style={styles.statsValue}>{mostKills}</Text>
-          </View>
-          <View style={styles.statsRow}>
-            <PixelText style={styles.statsLabel}>Total kills</PixelText>
-            <Text style={styles.statsValue}>{totalKills}</Text>
-          </View>
-          <View style={styles.statsRow}>
-            <PixelText style={styles.statsLabel}>Total crops</PixelText>
-            <Text style={styles.statsValue}>{totalCropsCollected}</Text>
-          </View>
+      {/* Docked to the right edge independent of the centered content below
+          it, so a wide leaderboard panel never pushes the lobby off true
+          center -- see the inline copy rendered in the scrolling content
+          instead, once the screen's too narrow for both side by side. */}
+      {isWide && (
+        <View style={styles.leaderboardDock} pointerEvents="box-none">
+          <LobbyLeaderboard />
         </View>
       )}
+
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={[styles.layout, isWide && styles.layoutRow]}>
-            <View style={styles.content}>
-              <PixelText style={styles.title}>Harvest Rush</PixelText>
-              <PixelText weight="semibold" style={styles.subtitle}>
-                Collect crops & grow your score
-              </PixelText>
+          <View style={styles.content}>
+            <PixelText style={styles.title}>Harvest Rush</PixelText>
+            <PixelText weight="semibold" style={styles.subtitle}>
+              Collect crops & grow your score
+            </PixelText>
 
-              <AvatarPicker />
+            <AvatarPicker />
 
-              <TextInput
-                value={nameInput}
-                onChangeText={setNameInput}
-                placeholder="Your name"
-                placeholderTextColor="rgba(255,255,255,0.5)"
-                maxLength={16}
-                style={styles.input}
-                returnKeyType="done"
-                onSubmitEditing={handlePlay}
-              />
+            <TextInput
+              value={nameInput}
+              onChangeText={setNameInput}
+              placeholder="Your name"
+              placeholderTextColor="rgba(255,255,255,0.5)"
+              maxLength={16}
+              style={styles.input}
+              returnKeyType="done"
+              onSubmitEditing={handlePlay}
+            />
 
-              <Pressable
-                style={[styles.playButton, !canPlay && styles.playButtonDisabled]}
-                onPress={handlePlay}
-                disabled={!canPlay}
-              >
-                <PixelText style={styles.playButtonText}>Play</PixelText>
-              </Pressable>
+            <Pressable
+              style={[styles.playButton, !canPlay && styles.playButtonDisabled]}
+              onPress={handlePlay}
+              disabled={!canPlay}
+            >
+              <PixelText style={styles.playButtonText}>Play</PixelText>
+            </Pressable>
 
-              {Platform.OS !== "web" && <ControlSchemePicker />}
-              {Platform.OS === "web" && isTouchPrimaryWeb() && <JoystickSideToggle />}
-            </View>
-
-            <View style={isWide ? styles.leaderboardWide : styles.leaderboardNarrow}>
-              <LobbyLeaderboard />
-            </View>
+            {Platform.OS !== "web" && <ControlSchemePicker />}
+            {Platform.OS === "web" && isTouchPrimaryWeb() && <JoystickSideToggle />}
+            {!isWide && <LobbyLeaderboard />}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -128,20 +105,14 @@ export function EntryScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#2f5d33" },
   flex: { flex: 1 },
-  statsCorner: {
+  leaderboardDock: {
     position: "absolute",
-    top: 10,
-    right: 10,
+    top: 0,
+    bottom: 0,
+    right: 24,
+    justifyContent: "center",
     alignItems: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.2)",
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    gap: 1,
   },
-  statsRow: { flexDirection: "row", alignItems: "baseline", gap: 4 },
-  statsLabel: { color: "rgba(255,255,255,0.55)", fontSize: 10 },
-  statsValue: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "700" },
   scrollContent: {
     flexGrow: 1,
     alignItems: "center",
@@ -149,11 +120,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 24,
   },
-  layout: { alignItems: "center", gap: 20 },
-  layoutRow: { flexDirection: "row", alignItems: "center", gap: 32 },
   content: { alignItems: "center", gap: 14 },
-  leaderboardWide: {},
-  leaderboardNarrow: { alignItems: "center" },
   title: { fontSize: 34, color: "#fff8e7" },
   subtitle: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 6 },
   input: {

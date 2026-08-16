@@ -69,6 +69,10 @@ interface InternalPlayer {
   // falls back to this player's own per-session id otherwise.
   joinedAt: number;
   peakCrops: number;
+  // Total crops picked up this life, distinct from peakCrops -- crops
+  // lost to combat or the passive leak and later replaced would double
+  // count against a running max, but this only ever goes up.
+  cropsCollectedThisLife: number;
   kills: number;
   analyticsId: string;
 }
@@ -240,6 +244,7 @@ export class Room {
       nextSeedDropAt: 0,
       joinedAt: now,
       peakCrops: C.STARTING_CROPS,
+      cropsCollectedThisLife: 0,
       kills: 0,
       analyticsId: analyticsId || id,
     };
@@ -314,6 +319,7 @@ export class Room {
         name: player.name,
         peakCrops: player.peakCrops,
         kills: player.kills,
+        cropsCollected: player.cropsCollectedThisLife,
       });
     }
     this.broadcast({ t: "playerLeft", id });
@@ -444,6 +450,7 @@ export class Room {
       nextSeedDropAt: 0,
       joinedAt: 0,
       peakCrops: 0,
+      cropsCollectedThisLife: 0,
       kills: 0,
       analyticsId: id,
     };
@@ -1041,6 +1048,7 @@ export class Room {
           this.removeCrop(crop.id);
           this.pendingCropRemove.push(crop.id);
           p.crops += 1;
+          p.cropsCollectedThisLife += 1;
           if (p.crops > p.peakCrops) p.peakCrops = p.crops;
         }
       }
