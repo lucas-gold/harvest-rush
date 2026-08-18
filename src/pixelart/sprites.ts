@@ -138,15 +138,9 @@ export function buildAvatarSprite(
     fillRect(m, fx, 5, 4, 3, custom.skinTone);
   }
 
-  // Torso / shirt — referee stripes for the admin easter egg, plain
+  // Torso / shirt — same neon as the admin easter egg's hat, plain
   // shirtColor otherwise.
-  if (custom.isAdmin) {
-    for (let row = 0; row < 4; row++) {
-      fillRect(m, 4, 8 + row, 8, 1, row % 2 === 0 ? "outline" : "white");
-    }
-  } else {
-    fillRect(m, 4, 8, 8, 4, custom.shirtColor);
-  }
+  fillRect(m, 4, 8, 8, 4, custom.isAdmin ? "hatNeon" : custom.shirtColor);
 
   // Arms (skin), swap for walk animation — unless armsLevel forces both
   // to the same height.
