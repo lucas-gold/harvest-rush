@@ -149,6 +149,12 @@ export const HIT_SCATTER_TOWARD_SHOOTER_FRACTION = 0.7;
  * from victim to shooter, or two loaded players can trade the same stack
  * back and forth indefinitely without either of them ever running out. */
 export const HIT_DROP_SURVIVAL_FRACTION = 0.8;
+/** An elimination always scatters at least this many crops, even off a
+ * target who had fewer (down to 0) — a kill is never worthless to the
+ * shooter just because the target hadn't collected anything yet. Applied
+ * after HIT_DROP_SURVIVAL_FRACTION, not before, so it's a real floor on
+ * what actually lands rather than getting shaved back down by it. */
+export const MIN_ELIMINATION_DROP = 5;
 /** Grace period after spawning or getting hit before that player can be
  * hit again — prevents an instant second hit from the same or a
  * still-overlapping seed. */

@@ -960,8 +960,12 @@ export class Room {
     // Only a fraction of the damage actually lands as pickupable crops —
     // the rest is destroyed outright (see HIT_DROP_SURVIVAL_FRACTION),
     // so combat is a real sink instead of just moving the same crops
-    // back and forth between whoever's shooting at each other.
-    const scatterCount = Math.round(actualDrop * C.HIT_DROP_SURVIVAL_FRACTION);
+    // back and forth between whoever's shooting at each other. An
+    // elimination still guarantees MIN_ELIMINATION_DROP regardless, so
+    // finishing off a light target is never worth nothing.
+    const scatterCount = eliminated
+      ? Math.max(C.MIN_ELIMINATION_DROP, Math.round(actualDrop * C.HIT_DROP_SURVIVAL_FRACTION))
+      : Math.round(actualDrop * C.HIT_DROP_SURVIVAL_FRACTION);
 
     target.invulnUntil = now + C.HIT_INVULN_MS;
 
