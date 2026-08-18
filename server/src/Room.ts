@@ -5,6 +5,7 @@ import { randomBotAvatar, randomBotName } from "./bots";
 import { SpatialGrid } from "./SpatialGrid";
 import { trackSessionEnd, SessionEndReason } from "./analytics";
 import { isAdminCode, ADMIN_NAME, ADMIN_AVATAR } from "./admin";
+import { containsBannedWord } from "./bannedNames";
 import { updateGlobalLeaderboard } from "./leaderboard";
 import {
   AvatarCustomization,
@@ -214,11 +215,15 @@ export class Room {
     const id = randomId("p");
     const now = Date.now();
     const admin = isAdminCode(name);
+    // The client already gates its Play button on this -- checked again
+    // here since a "join" message isn't necessarily coming from that
+    // client (see bannedNames.ts).
+    const cleanName = containsBannedWord(name) ? "" : name;
     const player: InternalPlayer = {
       id,
       ws,
       isBot: false,
-      name: admin ? ADMIN_NAME : name.slice(0, 16) || "Farmer",
+      name: admin ? ADMIN_NAME : cleanName.slice(0, 16) || "Farmer",
       avatar: admin ? ADMIN_AVATAR : avatar,
       x: 0,
       y: 0,

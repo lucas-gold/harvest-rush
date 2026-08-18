@@ -19,6 +19,7 @@ import { PixelText } from "../theme/PixelText";
 import { FONT_PIXEL_SEMIBOLD } from "../theme/fonts";
 import { usePlayerStore } from "../state/playerStore";
 import { trackLandedOnLobby } from "../analytics";
+import { containsBannedWord } from "../bannedNames";
 import { isTouchPrimaryWeb } from "../web/mobileWebFixes";
 import { EntryTrees } from "./EntryTrees";
 import type { RootStackParamList } from "../navigation/RootNavigator";
@@ -40,11 +41,12 @@ export function EntryScreen({ navigation }: Props) {
     trackLandedOnLobby();
   }, []);
 
-  const canPlay = nameInput.trim().length > 0;
+  const canPlay = nameInput.trim().length > 0 && !containsBannedWord(nameInput);
 
   const handlePlay = () => {
+    if (!canPlay) return; // also reached via the text input's own submit (Enter), which
+    // isn't blocked just by the button being disabled
     const trimmed = nameInput.trim().slice(0, 16);
-    if (!trimmed) return;
     setName(trimmed);
     navigation.replace("Arena");
   };
