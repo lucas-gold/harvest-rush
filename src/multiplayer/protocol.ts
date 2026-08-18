@@ -8,6 +8,8 @@ export type AvatarCustomization = {
   hairColor: "hairBrown" | "hairBlack" | "hairBlonde" | "hairRed";
   shirtColor: "shirtRed" | "shirtBlue" | "shirtGreen" | "shirtYellow";
   hat: boolean;
+  // Set server-side only -- a real client never sends this.
+  isAdmin?: boolean;
 };
 
 export interface PlayerSnapshot {

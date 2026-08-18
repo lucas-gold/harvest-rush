@@ -9,6 +9,10 @@ export interface AvatarCustomization {
   hairColor: Extract<PaletteKey, "hairBrown" | "hairBlack" | "hairBlonde" | "hairRed">;
   shirtColor: Extract<PaletteKey, "shirtRed" | "shirtBlue" | "shirtGreen" | "shirtYellow">;
   hat: boolean;
+  // Set server-side only (see server/src/admin.ts) — a striped referee
+  // shirt and neon hat in place of the normal shirtColor/hatStraw, no
+  // matter what shirtColor/hat this customization otherwise carries.
+  isAdmin?: boolean;
 }
 
 export const SKIN_OPTIONS: AvatarCustomization["skinTone"][] = ["skin1", "skin2", "skin3", "skin4"];
@@ -94,8 +98,13 @@ export function buildAvatarSprite(
       "crownGoldShine"
     );
   } else if (custom.hat) {
-    fillRect(m, 4, 0, 8, 2, "hatStraw");
-    fillRect(m, 2, 2, 12, 1, "hatStrawDark");
+    if (custom.isAdmin) {
+      fillRect(m, 4, 0, 8, 2, "hatNeon");
+      fillRect(m, 2, 2, 12, 1, "hatNeonDark");
+    } else {
+      fillRect(m, 4, 0, 8, 2, "hatStraw");
+      fillRect(m, 2, 2, 12, 1, "hatStrawDark");
+    }
   }
 
   // Hair (back of head shows more when facing up/away). Without a
@@ -129,8 +138,15 @@ export function buildAvatarSprite(
     fillRect(m, fx, 5, 4, 3, custom.skinTone);
   }
 
-  // Torso / shirt
-  fillRect(m, 4, 8, 8, 4, custom.shirtColor);
+  // Torso / shirt — referee stripes for the admin easter egg, plain
+  // shirtColor otherwise.
+  if (custom.isAdmin) {
+    for (let row = 0; row < 4; row++) {
+      fillRect(m, 4, 8 + row, 8, 1, row % 2 === 0 ? "outline" : "white");
+    }
+  } else {
+    fillRect(m, 4, 8, 8, 4, custom.shirtColor);
+  }
 
   // Arms (skin), swap for walk animation — unless armsLevel forces both
   // to the same height.

@@ -4,6 +4,7 @@ import { randomId, randomPointInCircle, dist2, clampToCircle, sweptCircleOverlap
 import { randomBotAvatar, randomBotName } from "./bots";
 import { SpatialGrid } from "./SpatialGrid";
 import { trackSessionEnd, SessionEndReason } from "./analytics";
+import { isAdminCode, ADMIN_NAME, ADMIN_AVATAR } from "./admin";
 import { updateGlobalLeaderboard } from "./leaderboard";
 import {
   AvatarCustomization,
@@ -212,12 +213,13 @@ export class Room {
   join(ws: WebSocket, name: string, avatar: AvatarCustomization, analyticsId?: string): string {
     const id = randomId("p");
     const now = Date.now();
+    const admin = isAdminCode(name);
     const player: InternalPlayer = {
       id,
       ws,
       isBot: false,
-      name: name.slice(0, 16) || "Farmer",
-      avatar,
+      name: admin ? ADMIN_NAME : name.slice(0, 16) || "Farmer",
+      avatar: admin ? ADMIN_AVATAR : avatar,
       x: 0,
       y: 0,
       dirX: 0,

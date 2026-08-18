@@ -17,6 +17,8 @@ export const PALETTE = {
   shirtYellow: "#d9a83a",
   hatStraw: "#e0c26a",
   hatStrawDark: "#b89a4e",
+  hatNeon: "#39ff14",
+  hatNeonDark: "#1f8c0a",
 
   arenaGround: "#2f5d33",
   arenaGroundDark: "#2b562f",

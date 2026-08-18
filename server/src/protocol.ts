@@ -12,6 +12,8 @@ export type AvatarCustomization = {
   hairColor: "hairBrown" | "hairBlack" | "hairBlonde" | "hairRed";
   shirtColor: "shirtRed" | "shirtBlue" | "shirtGreen" | "shirtYellow";
   hat: boolean;
+  // Set server-side only (see admin.ts) -- never sent by a real client.
+  isAdmin?: boolean;
 };
 
 export interface PlayerSnapshot {
