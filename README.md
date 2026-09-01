@@ -1,9 +1,8 @@
 # Harvest Rush
 
-A fast-paced multiplayer arena game — think agar.io/slither.io, but you're a farmer collecting
-crops instead of blobs. Run around a big circular field with everyone else currently in your
-lobby, scoop up crops just by running over them, and shoot seeds at other players to knock crops
-off their stack. No accounts, no saving — pick a name and an avatar, jump in.
+A fast-paced multiplayer arena game as a farmer collecting crops. Run around a big circular field with everyone else currently in your lobby, scoop up crops just by running over them, and shoot seeds at other players to knock crops off their stack. No account necessary — pick a name and an avatar and play on mobile or desktop. Play anytime against AI bots or real players.
+
+<https://harvestrush.lucas.gold>
 
 ## How it plays
 
