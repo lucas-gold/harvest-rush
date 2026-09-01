@@ -9,9 +9,7 @@ export interface AvatarCustomization {
   hairColor: Extract<PaletteKey, "hairBrown" | "hairBlack" | "hairBlonde" | "hairRed">;
   shirtColor: Extract<PaletteKey, "shirtRed" | "shirtBlue" | "shirtGreen" | "shirtYellow">;
   hat: boolean;
-  // Set server-side only (see server/src/admin.ts) — a striped referee
-  // shirt and neon hat in place of the normal shirtColor/hatStraw, no
-  // matter what shirtColor/hat this customization otherwise carries.
+  // Set server-side only (see server/src/admin.ts) — custom 'admin' avatar
   isAdmin?: boolean;
 }
 
