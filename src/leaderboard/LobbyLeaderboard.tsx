@@ -80,7 +80,9 @@ export function LobbyLeaderboard() {
     const textStyle = isSelf ? styles.selfText : null;
     return (
       <View key={entry.id} style={[styles.row, isFirst && styles.rowFirst]}>
-        <Text style={[styles.rank, textStyle]}>{rank}</Text>
+        <Text style={[styles.rank, textStyle]} numberOfLines={1}>
+          {rank}
+        </Text>
         <PixelText weight={isSelf ? "bold" : "semibold"} style={[styles.name, textStyle]} numberOfLines={1}>
           {entry.name}
         </PixelText>
@@ -116,7 +118,7 @@ export function LobbyLeaderboard() {
 
 const styles = StyleSheet.create({
   root: {
-    width: 280,
+    width: 296,
     backgroundColor: "rgba(0,0,0,0.3)",
     borderRadius: 14,
     padding: 12,
@@ -134,7 +136,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   rowFirst: { backgroundColor: "rgba(255,215,0,0.16)" },
-  rank: { color: "rgba(255,255,255,0.5)", fontSize: 12, width: 16 },
+  rank: { color: "rgba(255,255,255,0.5)", fontSize: 12, width: 32 },
   name: { color: "#fff", fontSize: 13, flex: 1 },
   stat: { color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "700", width: 40, textAlign: "right" },
   score: { color: "#e8c14a" },

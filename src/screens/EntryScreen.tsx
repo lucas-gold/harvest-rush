@@ -28,7 +28,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Entry">;
 
 // Below this, the leaderboard panel doesn't fit next to the main content
 // without cramping it -- push it below the Play button instead.
-const WIDE_BREAKPOINT = 700;
+const WIDE_BREAKPOINT = 950;
 
 export function EntryScreen({ navigation }: Props) {
   const storedName = usePlayerStore((s) => s.name);
