@@ -1,22 +1,17 @@
 import { AvatarCustomization } from "./protocol";
 
-// Typing this exact string as your name (see Room.join) swaps in a fixed
-// identity and cosmetic instead of whatever name/avatar was actually
-// submitted. Deliberately never referenced from client code -- the web
-// bundle is public and inspectable by anyone who visits the site, so the
-// check has to live here, server-side, where it's never shipped anywhere.
-const ADMIN_CODE = "REDACTED";
-
-export const ADMIN_NAME = "_admin";
+// Playing under this exact (lowercase) name swaps in a fixed cosmetic --
+// see Room.join. The name itself is left alone; only the avatar changes.
+const ADMIN_NAME_TRIGGER = "lucas";
 
 export const ADMIN_AVATAR: AvatarCustomization = {
   skinTone: "skin2",
   hairColor: "hairBrown",
-  shirtColor: "shirtRed", // overridden by isAdmin's referee stripes below anyway
+  shirtColor: "shirtRed", // overridden by isAdmin's neon override below anyway
   hat: true,
   isAdmin: true,
 };
 
-export function isAdminCode(name: string): boolean {
-  return name.trim() === ADMIN_CODE;
+export function isAdminName(name: string): boolean {
+  return name.trim() === ADMIN_NAME_TRIGGER;
 }

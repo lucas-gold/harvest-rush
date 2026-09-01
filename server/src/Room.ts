@@ -4,7 +4,7 @@ import { randomId, randomPointInCircle, dist2, clampToCircle, sweptCircleOverlap
 import { randomBotAvatar, randomBotName } from "./bots";
 import { SpatialGrid } from "./SpatialGrid";
 import { trackSessionEnd, SessionEndReason } from "./analytics";
-import { isAdminCode, ADMIN_NAME, ADMIN_AVATAR } from "./admin";
+import { isAdminName, ADMIN_AVATAR } from "./admin";
 import { containsBannedWord } from "./bannedNames";
 import { updateGlobalLeaderboard } from "./leaderboard";
 import {
@@ -214,7 +214,6 @@ export class Room {
   join(ws: WebSocket, name: string, avatar: AvatarCustomization, analyticsId?: string): string {
     const id = randomId("p");
     const now = Date.now();
-    const admin = isAdminCode(name);
     // The client already gates its Play button on this -- checked again
     // here since a "join" message isn't necessarily coming from that
     // client (see bannedNames.ts).
@@ -223,8 +222,8 @@ export class Room {
       id,
       ws,
       isBot: false,
-      name: admin ? ADMIN_NAME : cleanName.slice(0, 16) || "Farmer",
-      avatar: admin ? ADMIN_AVATAR : avatar,
+      name: cleanName.slice(0, 16) || "Farmer",
+      avatar: isAdminName(name) ? ADMIN_AVATAR : avatar,
       x: 0,
       y: 0,
       dirX: 0,
